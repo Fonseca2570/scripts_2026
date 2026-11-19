@@ -25,7 +25,7 @@ while API.Read_LoopyLoop() do
     end
 
     if Slib:IsPlayerInArea(2899,3471,0,20) then 
-        Interact:Object("Fishing spot", "Cage")
+        Interact:NPC("Fishing spot", "Cage")
         goto continue
     end
 
