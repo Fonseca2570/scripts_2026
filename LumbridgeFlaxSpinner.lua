@@ -20,6 +20,7 @@ local API = require("api")
 local startTime = os.time()
 local startXp = API.GetSkillXP("CRAFTING")
 local strings, fail = 0, 0
+API.SetDrawTrackedSkills(true)
 
 ID = {
     FLAX = 1779,
@@ -45,7 +46,6 @@ local function spin()
 end
 
 local function stairsUp()
-    --API.DoAction_Object1(0x34, 80, { ID.STAIRS_UP }, 50)
     Interact:Object("Staircase","Climb-up")
     API.RandomSleep2(600, 400, 500)
 end
@@ -90,9 +90,13 @@ while API.Read_LoopyLoop() do
         fail = 0
         if API.GetFloorLv_2() == 2 then
             stairsDown()
-        else
+        else    
             spin()
         end
+    end
+
+    if API.GetFloorLv_2() == 0 then 
+        stairsUp()
     end
 
     ::continue::
