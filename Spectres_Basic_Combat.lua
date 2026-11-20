@@ -1,7 +1,7 @@
 ScriptName = "Basic Combat"
 Author = "Spectre011"
-ScriptVersion = "1.1.0"
-ReleaseDate = "31-08-2026"
+ScriptVersion = "1.2.0"
+ReleaseDate = "20-11-2026"
 DiscordHandle = "not_spectre011"
 --[[
 Changelog:
@@ -20,6 +20,10 @@ v1.1.0 - 31-08-2026
       a single row instead of its hundreds of items.
     - Added an Alch tab that High Alchs the listed items.
     - Added a Note tab that notes the listed items with magic notepaper.
+
+v1.2.0 - 20-11-2026
+    - Added a Bury tab that buries bones and scatters ashes from the list.
+    - Added Bones and Ashes static lists.
 ]]
 
 local API = require("api")
@@ -49,6 +53,7 @@ local Config = {
     ItemListMaxRows = 8,       -- Item list rows shown before the box starts scrolling
     AlchInterval = 3,          -- Min seconds between High Alch passes
     NoteInterval = 3,          -- Min seconds between Note passes
+    BuryInterval = 1.2,        -- Min seconds between Bury passes, one item each
     MoundMinSleep = 1200,      -- Post-investigate min sleep (ms), the wyrm takes a moment
     MoundMaxSleep = 1800,      -- Post-investigate max sleep (ms)
     NoTargetTimeout = 120,     -- Stop the script after this many seconds with no target
@@ -226,6 +231,18 @@ local LootPresets = {
             1601, 1603, 1605, 1607, 1609, 1611, 1613, 1615, 6573, 21346, 31855, 56400
         },
     },
+    -- Unnoted bone and ash ids from the RS3 Wiki, monster drops only.
+    {
+        Name = "Bones",
+        Ids = {
+            526, 528, 530, 532, 534, 536, 2859, 3125, 3183, 4812, 6729, 6812, 14793,
+            18832, 30209, 35008, 35010, 48075, 51858,
+        },
+    },
+    {
+        Name = "Ashes",
+        Ids = { 20264, 20266, 20268, 33260, 34159 },
+    },
 }
 
 -- Dropdown labels, built once so the render loop is not rebuilding a table
@@ -303,9 +320,11 @@ local State = {
         Loot = { Entries = {}, Input = "", PresetIndex = 0, Ids = {}, IdSet = {}, Enabled = true },
         Alch = { Entries = {}, Input = "", PresetIndex = 0, Ids = {}, IdSet = {}, Enabled = false },
         Note = { Entries = {}, Input = "", PresetIndex = 0, Ids = {}, IdSet = {}, Enabled = false },
+        Bury = { Entries = {}, Input = "", PresetIndex = 0, Ids = {}, IdSet = {}, Enabled = false },
     },
     LastAlch = 0,                -- os.clock() of the last High Alch pass
     LastNote = 0,                -- os.clock() of the last Note pass
+    LastBury = 0,                -- os.clock() of the last Bury pass
     LastNotepaperWarn = 0,       -- os.clock() of the last "no notepaper" warning
     Sustain = {                  -- Sustain toggles (set from the Options tab)
         Excalibur = false,       -- Heal HP with Excalibur
@@ -731,7 +750,7 @@ end
 
 -- The Loot, Alch and Note tabs are three instances of the same list, told apart
 -- by Key. Everything below takes that Key so none of it is written three times.
-local ListLabels = { Loot = "Loot", Alch = "Alch", Note = "Note" }
+local ListLabels = { Loot = "Loot", Alch = "Alch", Note = "Note", Bury = "Bury" }
 
 -- Find a preset by the name stored in a list entry. Returns nil when a saved
 -- config names a list that no longer exists.
@@ -1200,6 +1219,20 @@ local function NoteListed()
 
     State.LastNote = os.clock()
     Slib:Note(Ids)
+end
+
+-- Bury or scatter one listed item per pass. Bury and Scatter are the first
+-- inventory option on every bone and ash, and each takes a tick, so one item a
+-- pass keeps the clicks from piling up on the same item.
+local function BuryListed()
+    if not State.Lists.Bury.Enabled then return end
+    if os.clock() - State.LastBury < Config.BuryInterval then return end
+
+    local Ids = ListIdsInInventory("Bury")
+    if Ids == nil then return end
+
+    State.LastBury = os.clock()
+    API.DoAction_Inventory1(Ids[1], 0, 1, API.OFF_ACT_GeneralInterface_route)
 end
 
 -- Loot the configured item ids off the ground around the player.
@@ -1710,6 +1743,14 @@ local function DrawGui()
                     DrawItemList("Note")
                     ImGui.EndTabItem()
                 end
+                if ImGui.BeginTabItem("Bury") then
+                    ImGui.Spacing()
+                    DrawItemListToggle("Bury", "Bury / scatter listed items",
+                        "Buries bones and scatters ashes from the inventory")
+                    DrawItemListControls("Bury")
+                    DrawItemList("Bury")
+                    ImGui.EndTabItem()
+                end
                 if ImGui.BeginTabItem("Options") then
                     ImGui.Spacing()
                     DrawOptions()
@@ -1807,6 +1848,7 @@ while API.Read_LoopyLoop() do
             LootGround()
             AlchListed()
             NoteListed()
+            BuryListed()
         end
 
         -- Landing an attack, or already being locked in a fight, both count as
