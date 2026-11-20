@@ -34,8 +34,16 @@ local Modes = { "Banking", "Power chopping" }
 local TreeModes = { "Fixed tree", "By level" }
 
 -- Tree and bank tiles from the RS3 Wiki. Each location has one tree type, so
--- "By level" picks the highest location the player's level allows.
+-- "By level" picks the highest location the player's level allows. The Wiki has
+-- no tiles for normal trees, so they use the Draynor oak tile and the nearest
+-- "Tree" around it.
 local Locations = {
+    {
+        Name = "Draynor normal trees",
+        Tree = "Tree",
+        TreeSpot = { x = 3106, y = 3247, z = 0 },
+        Bank = { x = 3093, y = 3244, z = 0 },
+    },
     {
         Name = "Draynor oaks",
         Tree = "Oak",
@@ -330,15 +338,7 @@ local function followLevel()
         return true
     end
 
-    -- Below the first location's level, chop normal trees around it instead.
     local best = bestLocationForLevel(woodcuttingLevel())
-    if best == nil then
-        if State.Location ~= 1 or Config.Tree ~= "Tree" then
-            applyLocation(1)
-            Config.Tree = "Tree"
-        end
-        return true
-    end
     if best ~= State.Location or Config.Tree ~= Locations[best].Tree then
         applyLocation(best)
     end
@@ -470,7 +470,7 @@ local function drawGui()
     end
 end
 
-applyLocation(2)
+applyLocation(3)
 
 if type(ClearRender) == "function" then
     ClearRender()
