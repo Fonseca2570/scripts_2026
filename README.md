@@ -11,7 +11,7 @@ Shared helpers used by `fisher.lua`, `woodcutter.lua`, `cooker.lua`, `smelter.lu
 | `utils/movement.lua` | `require("utils.movement")` | `isNear(tile, radius)`, `moveTo(tile)`, `copyTile(tile)` |
 | `utils/items.lua` | `require("utils.items")` | `lowerName(item)`, `find(matches)`, `dropAll(matches)`, `fill(box, matches)` (wood/ore box) |
 | `utils/objects.lua` | `require("utils.objects")` | `nearest(objects, matches)` |
-| `utils/banking.lua` | `require("utils.banking")` | `find(action)`, `open(action)` (returns `false` when no bank is nearby), `findItem(matches)` (first matching bank item) |
+| `utils/banking.lua` | `require("utils.banking")` | `find(action)`, `open(action)` (returns `false` when no bank is nearby), `findItem(matches)` (first matching bank item), `close()` (presses Escape) |
 | `utils/production.lua` | `require("utils.production")` | `isMakeXOpen()`, `confirm()` (Space) |
 | `utils/gui.lua` | `require("utils.gui")` | `indexOf`, `tile`, `text`, `checkbox`, `controls(config, state)` (radius input only when `config.AreaRadius` is set), `show(title, draw)` |
 

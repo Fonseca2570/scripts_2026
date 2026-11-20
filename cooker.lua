@@ -132,6 +132,7 @@ local function withdrawFood()
             break
         end
     end
+    Banking.close()
     return true
 end
 

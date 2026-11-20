@@ -10,6 +10,7 @@ end
 local objects = {}
 local bank = {}
 local boxAccepts = true
+local bankOpen, escapeCloses = false, true
 local inventory = {}
 
 local fakeApi = {
@@ -17,7 +18,16 @@ local fakeApi = {
     Read_LoopyLoop = function() return true end,
     Write_LoopyLoop = function(value) record("Write_LoopyLoop", value) end,
     Dist_FLP = function(tile) return tile end,
-    ReadAllObjectsArray = function() return objects end,
+    ReadAllObjectsArray = function(types)
+        record("ReadAllObjectsArray", table.concat(types, ","))
+        return objects
+    end,
+    KeyboardPress2 = function(key)
+        record("KeyboardPress2", key)
+        if escapeCloses then
+            bankOpen = false
+        end
+    end,
     Container_Get_all = function() return bank end,
     PlayerCoord = function() return { x = 1, y = 2, z = 3 } end,
     OFF_ACT_GeneralInterface_route = 0,
@@ -59,6 +69,10 @@ Inventory = {
 local itemNames = { [317] = "Raw shrimps", [315] = "Shrimps", [995] = "Coins" }
 Item = {
     Get = function(_, id) return { name = itemNames[id] } end,
+}
+
+Bank = {
+    IsOpen = function() return bankOpen end,
 }
 
 Interact = {
@@ -208,7 +222,7 @@ for _, tt in ipairs({
     reset()
     objects = tt.objects
     check(tt.name .. " (result)", Banking.open("Bank"), tt.expected)
-    check(tt.name .. " (call)", calls[1] and table.concat(calls[1], ","), tt.expectedCall)
+    check(tt.name .. " (call)", calls[2] and table.concat(calls[2], ","), tt.expectedCall)
 end
 
 for _, tt in ipairs({
@@ -237,6 +251,25 @@ for _, tt in ipairs({
     local item = Banking.findItem(isRaw)
     check(tt.name .. " (id)", item and item.id, tt.expectedId)
     check(tt.name .. " (name)", item and item.name, tt.expectedName)
+end
+
+for _, tt in ipairs({
+    { name = "find includes decor objects (bank chests)", expected = true },
+}) do
+    reset()
+    Banking.find("Bank")
+    check(tt.name, calls[1] and calls[1][2]:find("12", 1, true) ~= nil, tt.expected)
+end
+
+for _, tt in ipairs({
+    { name = "close presses Escape and waits for the bank to close", open = true, closes = true, expected = true, expectedKey = 0x1B },
+    { name = "close reports a bank that stays open", open = true, closes = false, expected = false, expectedKey = 0x1B },
+    { name = "close does nothing when the bank is closed", open = false, closes = true, expected = true, expectedKey = nil },
+}) do
+    reset()
+    bankOpen, escapeCloses = tt.open, tt.closes
+    check(tt.name .. " (result)", Banking.close(), tt.expected)
+    check(tt.name .. " (key)", calls[1] and calls[1][2], tt.expectedKey)
 end
 
 -- Objects

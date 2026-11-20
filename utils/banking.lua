@@ -5,6 +5,8 @@ local Banking = {}
 
 local ObjectType = 0
 local NpcType = 1
+local DecorType = 12
+local EscapeKey = 0x1B
 local BankContainer = 95
 
 local function isBankName(name)
@@ -15,8 +17,9 @@ end
 -- Banks have different names (Bank booth, Bank chest, Banker...) and can be
 -- objects or NPCs, so look for the bank action first and fall back to "bank"
 -- in the name. Deposit boxes are skipped because they cannot be opened as a bank.
+-- Some bank chests, like Burthorpe's, are decor objects.
 function Banking.find(action)
-    local candidates = API.ReadAllObjectsArray({ ObjectType, NpcType }, { -1 }, {}) or {}
+    local candidates = API.ReadAllObjectsArray({ ObjectType, NpcType, DecorType }, { -1 }, {}) or {}
     return Objects.nearest(candidates, function(candidate)
         return candidate.Action == action
     end) or Objects.nearest(candidates, function(candidate)
@@ -36,6 +39,23 @@ function Banking.open(action)
     end
     Interact:Object(bank.Name, action)
     return true
+end
+
+-- The API has no close-bank call, so press Escape like a player would. An open
+-- bank blocks the inventory, so close it after withdrawing.
+function Banking.close()
+    if not Bank:IsOpen() then
+        return true
+    end
+
+    API.KeyboardPress2(EscapeKey, 60, 100)
+    for _ = 1, 10 do
+        API.RandomSleep2(100, 50, 50)
+        if not Bank:IsOpen() then
+            return true
+        end
+    end
+    return false
 end
 
 -- Returns the first bank item, as { id, name, amount }, that matches. The bank
