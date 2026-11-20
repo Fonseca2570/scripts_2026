@@ -26,6 +26,7 @@ local RequiredItems = {
 
 -- Fishing spot and bank tiles from the RS3 Wiki, except Burthorpe. Fishing spot
 -- tiles are in the water, so MoveTo walks to the shore and stops there.
+-- Barbarian Village banks at Edgeville.
 local Locations = {
     {
         Name = "Burthorpe",
@@ -59,6 +60,7 @@ local Locations = {
         Name = "Barbarian Village",
         FishingSpot = { x = 3104, y = 3424, z = 0 },
         FishingAction = "Lure",
+        Bank = { x = 3095, y = 3494, z = 0 },
         PowerFish = true,
     },
 }
@@ -86,16 +88,44 @@ local function isRawFish(item)
     return item.name ~= nil and item.name:lower():find("^raw ") ~= nil
 end
 
-local function dropRawFish()
-    local dropped = false
+local function firstRawFish()
+    local first, count = nil, 0
     for _, item in ipairs(Inventory:GetItems()) do
         if isRawFish(item) then
-            Inventory:Drop(item.id)
-            dropped = true
-            API.RandomSleep2(100, 150, 200)
+            first = first or item
+            count = count + 1
         end
     end
-    return dropped
+    return first, count
+end
+
+-- Drop targets an item id, not a slot, so a drop sent before the game removes
+-- the previous fish hits that same fish again. Wait for each drop to land.
+local function dropOneRawFish(fish, count)
+    Inventory:Drop(fish.id)
+    for _ = 1, 10 do
+        API.RandomSleep2(100, 50, 50)
+        local _, remaining = firstRawFish()
+        if remaining < count then
+            return true
+        end
+    end
+    return false
+end
+
+local function dropRawFish()
+    local fish, count = firstRawFish()
+    if fish == nil then
+        return false
+    end
+
+    while fish ~= nil and API.Read_LoopyLoop() do
+        if not dropOneRawFish(fish, count) then
+            break
+        end
+        fish, count = firstRawFish()
+    end
+    return true
 end
 
 local function depositRawFish()
@@ -126,14 +156,23 @@ local function nearestObject(objects, matches)
     return nearest
 end
 
--- Bank objects have different names (Bank booth, Bank chest, Counter...), so
--- look for the "Bank" action first and fall back to "bank" in the name.
+local ObjectType = 0
+local NpcType = 1
+
+local function isBankName(name)
+    local lower = name and name:lower() or ""
+    return lower:find("bank", 1, true) ~= nil and lower:find("deposit", 1, true) == nil
+end
+
+-- Banks have different names (Bank booth, Bank chest, Banker...) and can be
+-- objects or NPCs, so look for the "Bank" action first and fall back to "bank"
+-- in the name. Deposit boxes are skipped because they cannot be opened as a bank.
 local function findBank()
-    local objects = API.ReadAllObjectsArray({ 0 }, { -1 }, {}) or {}
-    return nearestObject(objects, function(object)
-        return object.Action == Config.BankAction
-    end) or nearestObject(objects, function(object)
-        return object.Name ~= nil and object.Name:lower():find("bank", 1, true) ~= nil
+    local candidates = API.ReadAllObjectsArray({ ObjectType, NpcType }, { -1 }, {}) or {}
+    return nearestObject(candidates, function(candidate)
+        return candidate.Action == Config.BankAction
+    end) or nearestObject(candidates, function(candidate)
+        return isBankName(candidate.Name)
     end)
 end
 
@@ -141,6 +180,11 @@ local function openBank()
     local bank = findBank()
     if bank == nil then
         State.Status = "No bank found"
+        return
+    end
+
+    if bank.Type == NpcType then
+        Interact:NPC(bank.Name, Config.BankAction)
         return
     end
     Interact:Object(bank.Name, Config.BankAction)
