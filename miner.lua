@@ -97,6 +97,7 @@ local Locations = {
 -- mining scripts. Clicking a rock refills stamina, so click again when it runs low.
 local RockertunityIds = { 7164, 7165 }
 local LowStamina = 200
+local StaminaLevel = 15
 local MineAction = "Mine"
 
 local RockNames = {}
@@ -196,10 +197,14 @@ local function mine()
     Interact:Object(Config.Rock, MineAction)
 end
 
--- The progress bar reads below 0 when it is not shown.
+-- Stamina starts at Mining level 15. Below that, or when the bar is not shown,
+-- the progress bar reads 0 or less and must not trigger a click every loop.
 local function isStaminaLow()
+    if miningLevel() < StaminaLevel then
+        return false
+    end
     local stamina = API.LocalPlayer_HoverProgress()
-    return stamina >= 0 and stamina <= LowStamina
+    return stamina > 0 and stamina <= LowStamina
 end
 
 local function applyLocation(index)
