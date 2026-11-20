@@ -1,5 +1,8 @@
 local API = require("api")
-local Slib = require("slib")
+local Banking = require("utils.banking")
+local Gui = require("utils.gui")
+local Items = require("utils.items")
+local Movement = require("utils.movement")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
@@ -102,14 +105,6 @@ local State = {
 
 local NestRetryDelay = 30
 
-local function isNear(location)
-    return Slib:IsPlayerInArea(location.x, location.y, location.z, Config.AreaRadius)
-end
-
-local function moveTo(location)
-    Slib:MoveTo(location.x, location.y, location.z)
-end
-
 local function woodcuttingLevel()
     return API.XPLevelTable(API.GetSkillXP("WOODCUTTING"))
 end
@@ -123,84 +118,33 @@ local function findTree(name)
     return Trees[1]
 end
 
-local function lowerName(item)
-    return item.name and item.name:lower() or ""
-end
-
 local function isLog(item)
-    return lowerName(item):find("logs$") ~= nil
+    return Items.lowerName(item):find("logs$") ~= nil
 end
 
 local function isNest(item)
-    return lowerName(item):find("bird's nest", 1, true) ~= nil
+    return Items.lowerName(item):find("bird's nest", 1, true) ~= nil
 end
 
 local function isWoodBox(item)
-    return lowerName(item):find("wood box", 1, true) ~= nil
+    return Items.lowerName(item):find("wood box", 1, true) ~= nil
 end
 
-local function findItem(matches)
-    local first, count = nil, 0
-    for _, item in ipairs(Inventory:GetItems()) do
-        if matches(item) then
-            first = first or item
-            count = count + 1
-        end
-    end
-    return first, count
-end
-
--- Drop targets an item id, not a slot, so a drop sent before the game removes
--- the previous log hits that same log again. Wait for each drop to land.
-local function dropOneLog(log, count)
-    Inventory:Drop(log.id)
-    for _ = 1, 10 do
-        API.RandomSleep2(100, 50, 50)
-        local _, remaining = findItem(isLog)
-        if remaining < count then
-            return true
-        end
-    end
-    return false
-end
-
-local function dropLogs()
-    local log, count = findItem(isLog)
-    if log == nil then
-        return false
-    end
-
-    while log ~= nil and API.Read_LoopyLoop() do
-        if not dropOneLog(log, count) then
-            break
-        end
-        log, count = findItem(isLog)
-    end
-    return true
-end
-
--- Fill is the wood box's first option. A fill that moves no logs means the box
--- is full, so stop trying until it is emptied at the bank.
+-- A fill that moves no logs means the box is full, so stop trying until it is
+-- emptied at the bank.
 local function fillWoodBox()
     if not Config.UseWoodBox or State.WoodBoxFull then
         return false
     end
 
-    local box = findItem(isWoodBox)
+    local box = Items.find(isWoodBox)
     if box == nil then
         return false
     end
 
-    local _, before = findItem(isLog)
-    API.DoAction_Inventory1(box.id, 0, 1, API.OFF_ACT_GeneralInterface_route)
-    for _ = 1, 15 do
-        API.RandomSleep2(100, 50, 50)
-        local _, after = findItem(isLog)
-        if after < before then
-            return true
-        end
+    if Items.fill(box, isLog) then
+        return true
     end
-
     State.WoodBoxFull = true
     return false
 end
@@ -222,11 +166,11 @@ local function pickUpNests()
 
     -- A nest that cannot be reached would be retried forever, so give up on
     -- nests for a while when one does not reach the inventory.
-    local _, before = findItem(isNest)
+    local _, before = Items.find(isNest)
     API.DoAction_Loot_o(ids, Config.AreaRadius, API.PlayerCoordfloat(), Config.AreaRadius)
     for _ = 1, 20 do
         API.RandomSleep2(150, 50, 50)
-        local _, after = findItem(isNest)
+        local _, after = Items.find(isNest)
         if after > before then
             return true
         end
@@ -237,7 +181,7 @@ local function pickUpNests()
 end
 
 local function depositAtBank()
-    if Config.UseWoodBox and findItem(isWoodBox) ~= nil then
+    if Config.UseWoodBox and Items.find(isWoodBox) ~= nil then
         Bank:WoodBoxDepositLogs()
         State.WoodBoxFull = false
     end
@@ -262,63 +206,12 @@ local function depositAtBank()
     end
 end
 
-local function nearestObject(objects, matches)
-    local nearest, nearestDistance = nil, math.huge
-    for _, object in ipairs(objects) do
-        if matches(object) then
-            local distance = API.Dist_FLP(object.Tile_XYZ)
-            if distance < nearestDistance then
-                nearest, nearestDistance = object, distance
-            end
-        end
-    end
-    return nearest
-end
-
-local ObjectType = 0
-local NpcType = 1
-
-local function isBankName(name)
-    local lower = name and name:lower() or ""
-    return lower:find("bank", 1, true) ~= nil and lower:find("deposit", 1, true) == nil
-end
-
--- Banks have different names (Bank booth, Bank chest, Banker...) and can be
--- objects or NPCs, so look for the "Bank" action first and fall back to "bank"
--- in the name. Deposit boxes are skipped because they cannot be opened as a bank.
-local function findBank()
-    local candidates = API.ReadAllObjectsArray({ ObjectType, NpcType }, { -1 }, {}) or {}
-    return nearestObject(candidates, function(candidate)
-        return candidate.Action == Config.BankAction
-    end) or nearestObject(candidates, function(candidate)
-        return isBankName(candidate.Name)
-    end)
-end
-
-local function openBank()
-    local bank = findBank()
-    if bank == nil then
-        State.Status = "No bank found"
-        return
-    end
-
-    if bank.Type == NpcType then
-        Interact:NPC(bank.Name, Config.BankAction)
-        return
-    end
-    Interact:Object(bank.Name, Config.BankAction)
-end
-
-local function copyTile(tile)
-    return { x = tile.x, y = tile.y, z = tile.z }
-end
-
 local function applyLocation(index)
     local location = Locations[index]
     State.Location = index
     Config.Tree = location.Tree
-    Config.TreeSpot = copyTile(location.TreeSpot)
-    Config.Bank = copyTile(location.Bank)
+    Config.TreeSpot = Movement.copyTile(location.TreeSpot)
+    Config.Bank = Movement.copyTile(location.Bank)
 end
 
 local function bestLocationForLevel(level)
@@ -345,43 +238,6 @@ local function followLevel()
     return true
 end
 
-local function indexOf(list, value)
-    for i, v in ipairs(list) do
-        if v == value then
-            return i - 1
-        end
-    end
-    return 0
-end
-
-local function drawTile(label, tile)
-    ImGui.Text(label)
-    ImGui.PushItemWidth(90)
-    for _, axis in ipairs({ "x", "y", "z" }) do
-        local changed, value = ImGui.InputInt(axis .. "##" .. label, tile[axis], 0, 0)
-        if changed then
-            tile[axis] = value
-        end
-        if axis ~= "z" then
-            ImGui.SameLine(0, 6)
-        end
-    end
-    ImGui.PopItemWidth()
-
-    if ImGui.Button("Set to my position##" .. label) then
-        local coord = API.PlayerCoord()
-        tile.x, tile.y, tile.z = coord.x, coord.y, coord.z
-    end
-end
-
-local function drawCheckbox(label, value)
-    local changed, checked = ImGui.Checkbox(label, value)
-    if changed then
-        return checked
-    end
-    return value
-end
-
 local function drawTreeMode()
     local changed, index = ImGui.Combo("Tree mode", Config.ByLevel and 1 or 0, TreeModes)
     if changed then
@@ -406,8 +262,8 @@ local function drawTrees()
         return
     end
 
-    drawTile("Tree spot", Config.TreeSpot)
-    local changed, index = ImGui.Combo("Tree", indexOf(TreeNames, Config.Tree), TreeNames)
+    Gui.tile("Tree spot", Config.TreeSpot)
+    local changed, index = ImGui.Combo("Tree", Gui.indexOf(TreeNames, Config.Tree), TreeNames)
     if changed then
         Config.Tree = TreeNames[index + 1]
     end
@@ -419,8 +275,8 @@ local function drawMode()
     if changed then
         Config.PowerChop = index == 1
     end
-    Config.UseWoodBox = drawCheckbox("Fill wood box", Config.UseWoodBox)
-    Config.PickUpNests = drawCheckbox("Pick up bird's nests", Config.PickUpNests)
+    Config.UseWoodBox = Gui.checkbox("Fill wood box", Config.UseWoodBox)
+    Config.PickUpNests = Gui.checkbox("Pick up bird's nests", Config.PickUpNests)
 end
 
 local function drawBank()
@@ -429,56 +285,17 @@ local function drawBank()
     end
 
     ImGui.SeparatorText("Bank")
-    drawTile("Bank", Config.Bank)
-end
-
-local function drawControls()
-    ImGui.Separator()
-    local changed, radius = ImGui.InputInt("Arrival radius", Config.AreaRadius, 1, 5)
-    if changed then
-        Config.AreaRadius = math.max(1, radius)
-    end
-
-    if ImGui.Button(State.Running and "Pause" or "Start", 120, 26) then
-        State.Running = not State.Running
-        State.Status = State.Running and "Starting" or "Paused"
-    end
-    ImGui.SameLine(0, 12)
-    ImGui.Text("Status: " .. State.Status)
-end
-
-local function drawGui()
-    ImGui.SetNextWindowSize(360, 0, ImGuiCond.Always)
-    ImGui.SetNextWindowPos(60, 60, ImGuiCond.FirstUseEver)
-
-    local open, visible = ImGui.Begin("Woodcutter###Woodcutter", true)
-    if visible then
-        local ok, err = pcall(function()
-            drawTrees()
-            drawMode()
-            drawBank()
-            drawControls()
-        end)
-        if not ok then
-            ImGui.TextColored(1.0, 0.3, 0.3, 1.0, "GUI error: " .. tostring(err))
-        end
-    end
-    ImGui.End()
-
-    if not open then
-        API.Write_LoopyLoop(false)
-    end
+    Gui.tile("Bank", Config.Bank)
 end
 
 applyLocation(3)
 
-if type(ClearRender) == "function" then
-    ClearRender()
-end
-
-if type(DrawImGui) == "function" then
-    DrawImGui(drawGui)
-end
+Gui.show("Woodcutter", function()
+    drawTrees()
+    drawMode()
+    drawBank()
+    Gui.controls(Config, State)
+end)
 
 API.Write_LoopyLoop(true)
 
@@ -507,14 +324,14 @@ while API.Read_LoopyLoop() do
 
         if Config.PowerChop then
             State.Status = "Dropping logs"
-            if dropLogs() then
+            if Items.dropAll(isLog) then
                 goto continue
             end
         end
 
-        if not isNear(Config.Bank) then
+        if not Movement.isNear(Config.Bank, Config.AreaRadius) then
             State.Status = "Walking to bank"
-            moveTo(Config.Bank)
+            Movement.moveTo(Config.Bank)
             goto continue
         end
 
@@ -524,7 +341,9 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        openBank()
+        if not Banking.open(Config.BankAction) then
+            State.Status = "No bank found"
+        end
         goto continue
     end
 
@@ -532,9 +351,9 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if not isNear(Config.TreeSpot) then
+    if not Movement.isNear(Config.TreeSpot, Config.AreaRadius) then
         State.Status = "Walking to trees"
-        moveTo(Config.TreeSpot)
+        Movement.moveTo(Config.TreeSpot)
         goto continue
     end
 

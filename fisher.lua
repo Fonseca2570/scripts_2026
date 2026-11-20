@@ -1,5 +1,9 @@
 local API = require("api")
 local Slib = require("slib")
+local Banking = require("utils.banking")
+local Gui = require("utils.gui")
+local Items = require("utils.items")
+local Movement = require("utils.movement")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
@@ -76,56 +80,8 @@ local State = {
     Location = 0,
 }
 
-local function isNear(location)
-    return Slib:IsPlayerInArea(location.x, location.y, location.z, Config.AreaRadius)
-end
-
-local function moveTo(location)
-    Slib:MoveTo(location.x, location.y, location.z)
-end
-
 local function isRawFish(item)
-    return item.name ~= nil and item.name:lower():find("^raw ") ~= nil
-end
-
-local function firstRawFish()
-    local first, count = nil, 0
-    for _, item in ipairs(Inventory:GetItems()) do
-        if isRawFish(item) then
-            first = first or item
-            count = count + 1
-        end
-    end
-    return first, count
-end
-
--- Drop targets an item id, not a slot, so a drop sent before the game removes
--- the previous fish hits that same fish again. Wait for each drop to land.
-local function dropOneRawFish(fish, count)
-    Inventory:Drop(fish.id)
-    for _ = 1, 10 do
-        API.RandomSleep2(100, 50, 50)
-        local _, remaining = firstRawFish()
-        if remaining < count then
-            return true
-        end
-    end
-    return false
-end
-
-local function dropRawFish()
-    local fish, count = firstRawFish()
-    if fish == nil then
-        return false
-    end
-
-    while fish ~= nil and API.Read_LoopyLoop() do
-        if not dropOneRawFish(fish, count) then
-            break
-        end
-        fish, count = firstRawFish()
-    end
-    return true
+    return Items.lowerName(item):find("^raw ") ~= nil
 end
 
 local function depositRawFish()
@@ -143,96 +99,8 @@ local function depositRawFish()
     Bank:DepositAll(ids)
 end
 
-local function nearestObject(objects, matches)
-    local nearest, nearestDistance = nil, math.huge
-    for _, object in ipairs(objects) do
-        if matches(object) then
-            local distance = API.Dist_FLP(object.Tile_XYZ)
-            if distance < nearestDistance then
-                nearest, nearestDistance = object, distance
-            end
-        end
-    end
-    return nearest
-end
-
-local ObjectType = 0
-local NpcType = 1
-
-local function isBankName(name)
-    local lower = name and name:lower() or ""
-    return lower:find("bank", 1, true) ~= nil and lower:find("deposit", 1, true) == nil
-end
-
--- Banks have different names (Bank booth, Bank chest, Banker...) and can be
--- objects or NPCs, so look for the "Bank" action first and fall back to "bank"
--- in the name. Deposit boxes are skipped because they cannot be opened as a bank.
-local function findBank()
-    local candidates = API.ReadAllObjectsArray({ ObjectType, NpcType }, { -1 }, {}) or {}
-    return nearestObject(candidates, function(candidate)
-        return candidate.Action == Config.BankAction
-    end) or nearestObject(candidates, function(candidate)
-        return isBankName(candidate.Name)
-    end)
-end
-
-local function openBank()
-    local bank = findBank()
-    if bank == nil then
-        State.Status = "No bank found"
-        return
-    end
-
-    if bank.Type == NpcType then
-        Interact:NPC(bank.Name, Config.BankAction)
-        return
-    end
-    Interact:Object(bank.Name, Config.BankAction)
-end
-
 local function hasSupplies()
     return Config.InfiniteSupplies or Config.RequiredItem == "" or Inventory:Contains(Config.RequiredItem)
-end
-
-local function indexOf(list, value)
-    for i, v in ipairs(list) do
-        if v == value then
-            return i - 1
-        end
-    end
-    return 0
-end
-
-local function drawTile(label, tile)
-    ImGui.Text(label)
-    ImGui.PushItemWidth(90)
-    for _, axis in ipairs({ "x", "y", "z" }) do
-        local changed, value = ImGui.InputInt(axis .. "##" .. label, tile[axis], 0, 0)
-        if changed then
-            tile[axis] = value
-        end
-        if axis ~= "z" then
-            ImGui.SameLine(0, 6)
-        end
-    end
-    ImGui.PopItemWidth()
-
-    if ImGui.Button("Set to my position##" .. label) then
-        local coord = API.PlayerCoord()
-        tile.x, tile.y, tile.z = coord.x, coord.y, coord.z
-    end
-end
-
-local function drawText(label, value)
-    local changed, text = ImGui.InputText(label, value)
-    if changed then
-        return text
-    end
-    return value
-end
-
-local function copyTile(tile)
-    return { x = tile.x, y = tile.y, z = tile.z }
 end
 
 local function setFishingAction(action)
@@ -241,11 +109,11 @@ local function setFishingAction(action)
 end
 
 local function applyLocation(location)
-    Config.FishingSpot = copyTile(location.FishingSpot)
+    Config.FishingSpot = Movement.copyTile(location.FishingSpot)
     setFishingAction(location.FishingAction)
     Config.PowerFish = location.PowerFish
     if location.Bank then
-        Config.Bank = copyTile(location.Bank)
+        Config.Bank = Movement.copyTile(location.Bank)
     end
 end
 
@@ -259,20 +127,17 @@ end
 
 local function drawFishing()
     ImGui.SeparatorText("Fishing")
-    drawTile("Fishing spot", Config.FishingSpot)
-    Config.FishingNPC = drawText("Spot name", Config.FishingNPC)
+    Gui.tile("Fishing spot", Config.FishingSpot)
+    Config.FishingNPC = Gui.text("Spot name", Config.FishingNPC)
 
-    local changed, index = ImGui.Combo("Type", indexOf(FishingActions, Config.FishingAction), FishingActions)
+    local changed, index = ImGui.Combo("Type", Gui.indexOf(FishingActions, Config.FishingAction), FishingActions)
     if changed then
         setFishingAction(FishingActions[index + 1])
     end
 
-    local infiniteChanged, infinite = ImGui.Checkbox("Infinite bait / feathers", Config.InfiniteSupplies)
-    if infiniteChanged then
-        Config.InfiniteSupplies = infinite
-    end
+    Config.InfiniteSupplies = Gui.checkbox("Infinite bait / feathers", Config.InfiniteSupplies)
     if not Config.InfiniteSupplies then
-        Config.RequiredItem = drawText("Required item", Config.RequiredItem)
+        Config.RequiredItem = Gui.text("Required item", Config.RequiredItem)
     end
 end
 
@@ -290,56 +155,17 @@ local function drawBank()
     end
 
     ImGui.SeparatorText("Bank")
-    drawTile("Bank", Config.Bank)
-    Config.BankAction = drawText("Action", Config.BankAction)
+    Gui.tile("Bank", Config.Bank)
+    Config.BankAction = Gui.text("Action", Config.BankAction)
 end
 
-local function drawControls()
-    ImGui.Separator()
-    local changed, radius = ImGui.InputInt("Arrival radius", Config.AreaRadius, 1, 5)
-    if changed then
-        Config.AreaRadius = math.max(1, radius)
-    end
-
-    if ImGui.Button(State.Running and "Pause" or "Start", 120, 26) then
-        State.Running = not State.Running
-        State.Status = State.Running and "Starting" or "Paused"
-    end
-    ImGui.SameLine(0, 12)
-    ImGui.Text("Status: " .. State.Status)
-end
-
-local function drawGui()
-    ImGui.SetNextWindowSize(360, 0, ImGuiCond.Always)
-    ImGui.SetNextWindowPos(60, 60, ImGuiCond.FirstUseEver)
-
-    local open, visible = ImGui.Begin("Fisher###Fisher", true)
-    if visible then
-        local ok, err = pcall(function()
-            drawLocation()
-            drawFishing()
-            drawMode()
-            drawBank()
-            drawControls()
-        end)
-        if not ok then
-            ImGui.TextColored(1.0, 0.3, 0.3, 1.0, "GUI error: " .. tostring(err))
-        end
-    end
-    ImGui.End()
-
-    if not open then
-        API.Write_LoopyLoop(false)
-    end
-end
-
-if type(ClearRender) == "function" then
-    ClearRender()
-end
-
-if type(DrawImGui) == "function" then
-    DrawImGui(drawGui)
-end
+Gui.show("Fisher", function()
+    drawLocation()
+    drawFishing()
+    drawMode()
+    drawBank()
+    Gui.controls(Config, State)
+end)
 
 API.Write_LoopyLoop(true)
 
@@ -358,14 +184,14 @@ while API.Read_LoopyLoop() do
     if Inventory:IsFull() then
         if Config.PowerFish then
             State.Status = "Dropping fish"
-            if dropRawFish() then
+            if Items.dropAll(isRawFish) then
                 goto continue
             end
         end
 
-        if not isNear(Config.Bank) then
+        if not Movement.isNear(Config.Bank, Config.AreaRadius) then
             State.Status = "Walking to bank"
-            moveTo(Config.Bank)
+            Movement.moveTo(Config.Bank)
             goto continue
         end
 
@@ -375,13 +201,15 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        openBank()
+        if not Banking.open(Config.BankAction) then
+            State.Status = "No bank found"
+        end
         goto continue
     end
 
-    if not isNear(Config.FishingSpot) then
+    if not Movement.isNear(Config.FishingSpot, Config.AreaRadius) then
         State.Status = "Walking to fishing spot"
-        moveTo(Config.FishingSpot)
+        Movement.moveTo(Config.FishingSpot)
         goto continue
     end
 
