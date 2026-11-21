@@ -75,6 +75,11 @@ Bank = {
     IsOpen = function() return bankOpen end,
 }
 
+local comboPick = nil
+ImGui = {
+    Combo = function(_, current) return comboPick ~= nil, comboPick or current end,
+}
+
 Interact = {
     NPC = function(_, name, action) record("NPC", name, action) end,
     Object = function(_, name, action) record("Object", name, action) end,
@@ -195,25 +200,35 @@ end
 
 for _, tt in ipairs({
     {
-        name = "open prefers the bank action",
+        name = "open Auto uses the nearest bank and its type's action",
+        bankType = "Auto",
         objects = {
-            { Name = "Bank chest", Action = "Use", Type = 0, Tile_XYZ = 1 },
-            { Name = "Banker", Action = "Bank", Type = 1, Tile_XYZ = 5 },
+            { Name = "Bank booth", Action = "Bank", Type = 0, Tile_XYZ = 3 },
+            { Name = "Bank chest", Action = "Use", Type = 12, Tile_XYZ = 1 },
         },
         expected = true,
-        expectedCall = "NPC,Banker,Bank",
+        expectedCall = "Object,Bank chest,Use",
     },
     {
-        name = "open falls back to the nearest bank name",
+        name = "open Auto talks to a banker NPC with Bank",
+        bankType = "Auto",
+        objects = { { Name = "Gnome banker", Action = "Talk-to", Type = 1, Tile_XYZ = 2 } },
+        expected = true,
+        expectedCall = "NPC,Gnome banker,Bank",
+    },
+    {
+        name = "open with a fixed type ignores nearer banks of other types",
+        bankType = "Bank booth",
         objects = {
-            { Name = "Bank booth", Action = "Use", Type = 0, Tile_XYZ = 3 },
-            { Name = "Bank chest", Action = "Use", Type = 0, Tile_XYZ = 1 },
+            { Name = "Bank chest", Action = "Use", Type = 12, Tile_XYZ = 1 },
+            { Name = "Bank booth", Action = "Bank", Type = 0, Tile_XYZ = 4 },
         },
         expected = true,
-        expectedCall = "Object,Bank chest,Bank",
+        expectedCall = "Object,Bank booth,Bank",
     },
     {
         name = "open skips deposit boxes",
+        bankType = "Auto",
         objects = { { Name = "Bank deposit box", Action = "Deposit", Type = 0, Tile_XYZ = 1 } },
         expected = false,
         expectedCall = nil,
@@ -221,8 +236,15 @@ for _, tt in ipairs({
 }) do
     reset()
     objects = tt.objects
-    check(tt.name .. " (result)", Banking.open("Bank"), tt.expected)
+    check(tt.name .. " (result)", Banking.open(tt.bankType), tt.expected)
     check(tt.name .. " (call)", calls[2] and table.concat(calls[2], ","), tt.expectedCall)
+end
+
+for _, tt in ipairs({
+    { name = "TypeNames starts with Auto", index = 1, expected = "Auto" },
+    { name = "TypeNames lists bank chests", index = 3, expected = "Bank chest" },
+}) do
+    check(tt.name, Banking.TypeNames[tt.index], tt.expected)
 end
 
 for _, tt in ipairs({
@@ -257,7 +279,7 @@ for _, tt in ipairs({
     { name = "find includes decor objects (bank chests)", expected = true },
 }) do
     reset()
-    Banking.find("Bank")
+    Banking.find("Auto")
     check(tt.name, calls[1] and calls[1][2]:find("12", 1, true) ~= nil, tt.expected)
 end
 
@@ -301,6 +323,14 @@ for _, tt in ipairs({
     { name = "indexOf defaults to zero", list = { "Cage", "Net" }, value = "Bait", expected = 0 },
 }) do
     check(tt.name, Gui.indexOf(tt.list, tt.value), tt.expected)
+end
+
+for _, tt in ipairs({
+    { name = "combo returns the picked option", pick = 2, value = "Auto", expected = "Bank chest" },
+    { name = "combo keeps the value when nothing is picked", pick = nil, value = "Banker", expected = "Banker" },
+}) do
+    comboPick = tt.pick
+    check(tt.name, Gui.combo("Bank type", tt.value, { "Auto", "Bank booth", "Bank chest", "Banker" }), tt.expected)
 end
 
 print(("%d/%d checks passed"):format(total - failures, total))

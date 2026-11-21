@@ -6,7 +6,7 @@ local Production = require("utils.production")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
-    BankAction = "Bank",
+    BankType = "Auto",
 }
 
 -- Logs and the Fletching level to cut them into shafts, from the RS3 Wiki,
@@ -113,7 +113,7 @@ end
 
 local function drawBank()
     ImGui.SeparatorText("Bank")
-    Config.BankAction = Gui.text("Action", Config.BankAction)
+    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
 end
 
 Gui.show("Fletcher", function()
@@ -160,7 +160,7 @@ while API.Read_LoopyLoop() do
     end
 
     State.Status = "Opening bank"
-    if not Banking.open(Config.BankAction) then
+    if not Banking.open(Config.BankType) then
         State.Status = "No bank found"
     end
 

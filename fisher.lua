@@ -10,7 +10,7 @@ local Config = {
     Bank = { x = 2889, y = 3533, z = 0 },
     FishingSpot = { x = 2899, y = 3471, z = 0 },
     AreaRadius = 20,
-    BankAction = "Bank",
+    BankType = "Auto",
     FishingNPC = "Fishing spot",
     FishingAction = "Cage",
     PowerFish = false,
@@ -156,7 +156,7 @@ local function drawBank()
 
     ImGui.SeparatorText("Bank")
     Gui.tile("Bank", Config.Bank)
-    Config.BankAction = Gui.text("Action", Config.BankAction)
+    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
 end
 
 Gui.show("Fisher", function()
@@ -201,7 +201,7 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        if not Banking.open(Config.BankAction) then
+        if not Banking.open(Config.BankType) then
             State.Status = "No bank found"
         end
         goto continue

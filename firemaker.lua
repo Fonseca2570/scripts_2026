@@ -9,7 +9,7 @@ API.SetDrawTrackedSkills(true)
 local Config = {
     FireSpot = { x = 0, y = 0, z = 0 },
     AreaRadius = 3,
-    BankAction = "Bank",
+    BankType = "Auto",
     Permanent = false,
     CollectSpirits = true,
 }
@@ -183,7 +183,7 @@ end
 
 local function drawBank()
     ImGui.SeparatorText("Bank")
-    Config.BankAction = Gui.text("Action", Config.BankAction)
+    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
 end
 
 Gui.show("Firemaker", function()
@@ -237,7 +237,7 @@ while API.Read_LoopyLoop() do
     end
 
     State.Status = "Opening bank"
-    if not Banking.open(Config.BankAction) then
+    if not Banking.open(Config.BankType) then
         State.Status = "No bank found"
     end
 

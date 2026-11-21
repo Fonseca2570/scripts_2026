@@ -9,7 +9,7 @@ local Config = {
     Bank = { x = 3093, y = 3244, z = 0 },
     TreeSpot = { x = 3087, y = 3231, z = 0 },
     AreaRadius = 20,
-    BankAction = "Bank",
+    BankType = "Auto",
     Tree = "Willow",
     PowerChop = false,
     ByLevel = false,
@@ -280,12 +280,15 @@ local function drawMode()
 end
 
 local function drawBank()
-    if Config.PowerChop or Config.ByLevel then
+    if Config.PowerChop then
         return
     end
 
     ImGui.SeparatorText("Bank")
-    Gui.tile("Bank", Config.Bank)
+    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
+    if not Config.ByLevel then
+        Gui.tile("Bank", Config.Bank)
+    end
 end
 
 applyLocation(3)
@@ -341,7 +344,7 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        if not Banking.open(Config.BankAction) then
+        if not Banking.open(Config.BankType) then
             State.Status = "No bank found"
         end
         goto continue

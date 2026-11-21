@@ -9,35 +9,55 @@ local DecorType = 12
 local EscapeKey = 0x1B
 local BankContainer = 95
 
-local function isBankName(name)
-    local lower = name and name:lower() or ""
-    return lower:find("bank", 1, true) ~= nil and lower:find("deposit", 1, true) == nil
+-- Bank chests open with "Use", bank booths and bankers with "Bank". Bankers are
+-- NPCs, sometimes with a prefix like "Gnome banker". Deposit boxes are not
+-- listed because they cannot be opened as a bank.
+local Types = {
+    { Name = "Bank booth", Action = "Bank" },
+    { Name = "Bank chest", Action = "Use" },
+    { Name = "Banker", Action = "Bank" },
+}
+
+Banking.TypeNames = { "Auto" }
+for _, bankType in ipairs(Types) do
+    Banking.TypeNames[#Banking.TypeNames + 1] = bankType.Name
 end
 
--- Banks have different names (Bank booth, Bank chest, Banker...) and can be
--- objects or NPCs, so look for the bank action first and fall back to "bank"
--- in the name. Deposit boxes are skipped because they cannot be opened as a bank.
--- Some bank chests, like Burthorpe's, are decor objects.
-function Banking.find(action)
+local function typeOf(name)
+    local lower = (name or ""):lower()
+    for _, bankType in ipairs(Types) do
+        if lower:find(bankType.Name:lower(), 1, true) ~= nil then
+            return bankType
+        end
+    end
+    return nil
+end
+
+-- Returns the nearest bank of the given type, or of any type for "Auto", and
+-- its type. Some bank chests, like Burthorpe's, are decor objects.
+function Banking.find(typeName)
     local candidates = API.ReadAllObjectsArray({ ObjectType, NpcType, DecorType }, { -1 }, {}) or {}
-    return Objects.nearest(candidates, function(candidate)
-        return candidate.Action == action
-    end) or Objects.nearest(candidates, function(candidate)
-        return isBankName(candidate.Name)
+    local bank = Objects.nearest(candidates, function(candidate)
+        local bankType = typeOf(candidate.Name)
+        return bankType ~= nil and (typeName == "Auto" or bankType.Name == typeName)
     end)
+    if bank == nil then
+        return nil, nil
+    end
+    return bank, typeOf(bank.Name)
 end
 
-function Banking.open(action)
-    local bank = Banking.find(action)
+function Banking.open(typeName)
+    local bank, bankType = Banking.find(typeName)
     if bank == nil then
         return false
     end
 
     if bank.Type == NpcType then
-        Interact:NPC(bank.Name, action)
+        Interact:NPC(bank.Name, bankType.Action)
         return true
     end
-    Interact:Object(bank.Name, action)
+    Interact:Object(bank.Name, bankType.Action)
     return true
 end
 

@@ -11,6 +11,14 @@ function Gui.indexOf(list, value)
     return 0
 end
 
+function Gui.combo(label, value, options)
+    local changed, index = ImGui.Combo(label, Gui.indexOf(options, value), options)
+    if changed then
+        return options[index + 1]
+    end
+    return value
+end
+
 function Gui.tile(label, tile)
     ImGui.Text(label)
     ImGui.PushItemWidth(90)

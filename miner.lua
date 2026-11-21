@@ -9,7 +9,7 @@ local Config = {
     Bank = { x = 3270, y = 3168, z = 0 },
     RockSpot = { x = 3229, y = 3148, z = 0 },
     AreaRadius = 20,
-    BankAction = "Bank",
+    BankType = "Auto",
     Rock = "Copper rock",
     PowerMine = false,
     ByLevel = false,
@@ -280,12 +280,15 @@ local function drawMode()
 end
 
 local function drawBank()
-    if Config.PowerMine or Config.ByLevel then
+    if Config.PowerMine then
         return
     end
 
     ImGui.SeparatorText("Bank")
-    Gui.tile("Bank", Config.Bank)
+    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
+    if not Config.ByLevel then
+        Gui.tile("Bank", Config.Bank)
+    end
 end
 
 applyLocation(1)
@@ -336,7 +339,7 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        if not Banking.open(Config.BankAction) then
+        if not Banking.open(Config.BankType) then
             State.Status = "No bank found"
         end
         goto continue
