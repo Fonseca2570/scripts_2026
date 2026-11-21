@@ -7,7 +7,7 @@ API.SetDrawTrackedSkills(true)
 
 local Config = {
     BankType = "Auto",
-    ToolKey = 1,
+    ToolKey = 2,
 }
 
 -- Logs and the Fletching level to cut them into shafts, from the RS3 Wiki,
@@ -29,9 +29,12 @@ local Logs = {
 local CraftOption = 1
 
 -- The first time logs are crafted the game asks which tool to use (knife,
--- tinderbox, add to bonfire) before the Make-X window. Its options answer to
--- the number keys 1-3, but no source says which one is the knife, so the key
--- is a setting.
+-- tinderbox, add to bonfire) before the Make-X window. It is not a dialog box;
+-- var 8749 reads 2169 while it is open (found in-game). Its options answer to
+-- the number keys 1-3 and the knife is 2 (found in-game). The key stays a
+-- setting in case the order changes.
+local ToolChoiceVar = 8749
+local ToolChoiceOpen = 2169
 local NumberKeys = { 0x31, 0x32, 0x33 }
 
 local LogLevels = {}
@@ -62,13 +65,17 @@ local function isOtherProduct(item)
 end
 
 -- Returns the status to show.
+local function isToolChoiceOpen()
+    return API.VB_FindPSettinOrder(ToolChoiceVar).state == ToolChoiceOpen
+end
+
 local function fletch(log)
     if Production.isMakeXOpen() then
         Production.confirm()
         return "Fletching " .. log.name
     end
 
-    if API.Check_Dialog_Open() then
+    if isToolChoiceOpen() then
         API.KeyboardPress2(NumberKeys[Config.ToolKey], 60, 100)
         return "Choosing the knife"
     end
