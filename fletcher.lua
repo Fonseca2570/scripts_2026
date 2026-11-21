@@ -7,6 +7,7 @@ API.SetDrawTrackedSkills(true)
 
 local Config = {
     BankType = "Auto",
+    ToolKey = 1,
 }
 
 -- Logs and the Fletching level to cut them into shafts, from the RS3 Wiki,
@@ -26,6 +27,12 @@ local Logs = {
 
 -- "Craft" is the first option on logs and uses the tool belt's knife.
 local CraftOption = 1
+
+-- The first time logs are crafted the game asks which tool to use (knife,
+-- tinderbox, add to bonfire) before the Make-X window. Its options answer to
+-- the number keys 1-3, but no source says which one is the knife, so the key
+-- is a setting.
+local NumberKeys = { 0x31, 0x32, 0x33 }
 
 local LogLevels = {}
 for _, log in ipairs(Logs) do
@@ -54,12 +61,20 @@ local function isOtherProduct(item)
     return name:find("bow", 1, true) ~= nil or name:find("stock", 1, true) ~= nil
 end
 
+-- Returns the status to show.
 local function fletch(log)
     if Production.isMakeXOpen() then
         Production.confirm()
-        return
+        return "Fletching " .. log.name
     end
+
+    if API.Check_Dialog_Open() then
+        API.KeyboardPress2(NumberKeys[Config.ToolKey], 60, 100)
+        return "Choosing the knife"
+    end
+
     API.DoAction_Inventory1(log.id, 0, CraftOption, API.OFF_ACT_GeneralInterface_route)
+    return "Fletching " .. log.name
 end
 
 local function bestLogInBank()
@@ -109,6 +124,11 @@ local function drawFletching()
     ImGui.Text("Logs: " .. (State.Log ~= "" and State.Log or "-"))
     ImGui.Text("Makes shafts. Pick Shaft in the fletching window once if it")
     ImGui.Text("remembers another item.")
+
+    local changed, key = ImGui.InputInt("Knife key (tool choice)", Config.ToolKey, 1, 1)
+    if changed then
+        Config.ToolKey = math.min(#NumberKeys, math.max(1, key))
+    end
 end
 
 local function drawBank()
@@ -145,8 +165,7 @@ while API.Read_LoopyLoop() do
         local log = Items.find(isFletchable)
         if log ~= nil then
             State.Log = log.name
-            State.Status = "Fletching " .. log.name
-            fletch(log)
+            State.Status = fletch(log)
             goto continue
         end
     end

@@ -29,7 +29,7 @@ Mines one rock type at a wiki location. Locations run from Lumbridge copper up t
 
 ## fletcher.lua
 
-Stand near a bank. Each trip withdraws the best logs your Fletching level allows, uses "Craft" on them and presses Space in the Make-X window to cut them into shafts. It stops once no logs are left. Make-X remembers the last product picked, so if a bow or crossbow stock comes out, the script stops and asks you to pick Shaft once by hand.
+Stand near a bank. Each trip withdraws the best logs your Fletching level allows, uses "Craft" on them and presses Space in the Make-X window to cut them into shafts. It stops once no logs are left. Make-X remembers the last product picked, so if a bow or crossbow stock comes out, the script stops and asks you to pick Shaft once by hand. The first time you craft logs, the game asks which tool to use (knife, tinderbox, add to bonfire) before Make-X. The script detects that dialog and presses the **Knife key** (1 by default; change it in the GUI if the knife is option 2 or 3).
 
 ## firemaker.lua
 
