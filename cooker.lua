@@ -65,16 +65,18 @@ local RawFoods = {
     ["raw rocktail"] = 93,
 }
 
--- Range and fire object names from the RS3 Wiki. A bonfire is a "Fire" with
--- logs added, so both are matched.
+-- Cooking actions per station from the RS3 Wiki, tried in order. Permanent
+-- bonfires and fire pits also have "Add logs to", and players can make it the
+-- left-click option, so the cook action is always named. "Cook-at" was renamed
+-- "Cook at" in March 2026. Player-lit fires only have "Use".
 local Stations = {
-    ["range"] = true,
-    ["cooking range"] = true,
-    ["clay oven"] = true,
-    ["grill"] = true,
-    ["fire"] = true,
-    ["bonfire"] = true,
-    ["fire pit"] = true,
+    ["range"] = { "Cook at", "Cook-at" },
+    ["cooking range"] = { "Cook at", "Cook-at" },
+    ["clay oven"] = { "Cook at", "Cook-at" },
+    ["grill"] = { "Cook at", "Cook-at" },
+    ["bonfire"] = { "Cook on", "Cook at" },
+    ["fire pit"] = { "Cook on", "Cook at" },
+    ["fire"] = { "Use" },
 }
 
 local State = {
@@ -95,25 +97,35 @@ end
 local function findStation()
     local objects = API.ReadAllObjectsArray({ 0, 12 }, { -1 }, {}) or {}
     return Objects.nearest(objects, function(object)
-        return Stations[(object.Name or ""):lower()] == true
+        return Stations[(object.Name or ""):lower()] ~= nil
     end)
 end
 
--- The Make-X interface opens on the station's default action (Cook-at on
--- ranges, Use on fires) and Space confirms it.
-local function cook()
+local function cookActions(station)
+    if Config.StationAction ~= "" then
+        return { Config.StationAction }
+    end
+    return Stations[station.Name:lower()]
+end
+
+-- The cook action opens the Make-X interface and Space confirms it. Returns
+-- the status to show.
+local function cook(food)
     if Production.isMakeXOpen() then
         Production.confirm()
-        return true
+        return "Cooking " .. food.name
     end
 
     local station = findStation()
     if station == nil then
-        return false
+        return "No range or fire found"
     end
-    local action = Config.StationAction ~= "" and Config.StationAction or station.Action
-    Interact:Object(station.Name, action)
-    return true
+    for _, action in ipairs(cookActions(station)) do
+        if Interact:Object(station.Name, action) then
+            return "Cooking " .. food.name
+        end
+    end
+    return "No cook option on " .. station.Name
 end
 
 local function withdrawFood()
@@ -141,7 +153,7 @@ local function drawCooking()
     ImGui.Text("Cooking level: " .. cookingLevel())
     ImGui.Text("Food: " .. (State.Food ~= "" and State.Food or "-"))
     Config.StationAction = Gui.text("Station action", Config.StationAction)
-    ImGui.Text("Leave empty to use the range or fire's default action.")
+    ImGui.Text("Leave empty to use the wiki's cook action for the station.")
 end
 
 local function drawBank()
@@ -173,10 +185,7 @@ while API.Read_LoopyLoop() do
         local food = Items.find(isCookable)
         if food ~= nil then
             State.Food = food.name
-            State.Status = "Cooking " .. food.name
-            if not cook() then
-                State.Status = "No range or fire found"
-            end
+            State.Status = cook(food)
             goto continue
         end
     end

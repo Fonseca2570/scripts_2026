@@ -33,12 +33,15 @@ local Logs = {
 
 local Modes = { "Make bonfire", "Permanent bonfire" }
 
--- Player-made fires are "Fire" and permanent ones (Yeti Town, Prifddinas) are
--- "Bonfire". Using logs on either adds them to the bonfire, which keeps burning
--- the backpack's logs of that type without more clicks.
-local FireNames = {
-    ["fire"] = true,
-    ["bonfire"] = true,
+-- Add-logs actions from the RS3 Wiki. Permanent bonfires (Yeti Town,
+-- Prifddinas, Max Guild) and the Menaphos fire pit also have "Cook on", and
+-- players can make it the left-click option, so "Add logs to" is always named.
+-- Player-made fires only have "Use", so logs are used on them instead. Either
+-- way the bonfire keeps burning the backpack's logs of that type.
+local FireActions = {
+    ["fire"] = {},
+    ["bonfire"] = { "Add logs to" },
+    ["fire pit"] = { "Add logs to" },
 }
 local FireSearchRadius = 15
 
@@ -71,7 +74,7 @@ end
 local function findFire()
     local objects = API.ReadAllObjectsArray({ 0, 12 }, { -1 }, {}) or {}
     return Objects.nearest(objects, function(object)
-        return FireNames[(object.Name or ""):lower()] == true and API.Dist_FLP(object.Tile_XYZ) <= FireSearchRadius
+        return FireActions[(object.Name or ""):lower()] ~= nil and API.Dist_FLP(object.Tile_XYZ) <= FireSearchRadius
     end)
 end
 
@@ -93,6 +96,12 @@ local function collectSpirit()
 end
 
 local function addToFire(log, fire)
+    for _, action in ipairs(FireActions[fire.Name:lower()]) do
+        if Interact:Object(fire.Name, action) then
+            return
+        end
+    end
+
     Inventory:Use(log.id)
     API.RandomSleep2(200, 50, 50)
     API.DoAction_Object1(UseOnAction, API.GeneralObject_route_useon, { fire.Id }, 50)
