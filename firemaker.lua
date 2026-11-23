@@ -2,13 +2,11 @@ local API = require("api")
 local Banking = require("utils.banking")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
-local Movement = require("utils.movement")
 local Objects = require("utils.objects")
+local Player = require("utils.player")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
-    FireSpot = { x = 0, y = 0, z = 0 },
-    AreaRadius = 3,
     BankType = "Auto",
     Permanent = false,
     CollectSpirits = true,
@@ -148,11 +146,12 @@ local function withdrawLogs()
 end
 
 -- Returns the status to show. A permanent bonfire is used as it is, otherwise
--- the script walks to the fire spot and lights a fire there first.
+-- a fire is lit where the player stands first.
 local function burn(log)
     local fire = findFire()
     if fire ~= nil then
         addToFire(log, fire)
+        Player.waitUntilBusy()
         return "Burning " .. log.name
     end
 
@@ -160,16 +159,8 @@ local function burn(log)
         return "No bonfire found"
     end
 
-    if Config.FireSpot.x == 0 then
-        return "Set a fire spot first"
-    end
-
-    if not Movement.isNear(Config.FireSpot, Config.AreaRadius) then
-        Movement.moveTo(Config.FireSpot)
-        return "Walking to fire spot"
-    end
-
     light(log)
+    Player.waitUntilBusy()
     return "Lighting fire"
 end
 
@@ -186,8 +177,8 @@ local function drawFire()
     if Config.Permanent then
         return
     end
-    Gui.tile("Fire spot", Config.FireSpot)
-    ImGui.Text("Fires can't be lit right next to a bank.")
+    ImGui.Text("Lights the fire where you stand. Fires can't")
+    ImGui.Text("be lit right next to a bank.")
 end
 
 local function drawBank()

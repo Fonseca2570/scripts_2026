@@ -3,11 +3,11 @@ local Gui = require("utils.gui")
 local Items = require("utils.items")
 API.SetDrawTrackedSkills(true)
 
-local Config = {
-    FurnaceName = "Furnace",
-    SmeltAction = "Smelt",
-    DepositAction = "Deposit-all (into metal bank)",
-}
+local Config = {}
+
+local FurnaceName = "Furnace"
+local SmeltAction = "Smelt"
+local DepositAction = "Deposit-all (into metal bank)"
 
 -- Bars smelted from ores in the furnace's metal bank, highest level first. Item
 -- ids and levels from the RS3 Wiki. Primal and platinum bars are left out.
@@ -134,8 +134,6 @@ local function drawSmelting()
     ImGui.SeparatorText("Smelting")
     ImGui.Text("Smithing level: " .. smithingLevel())
     ImGui.Text("Bar: " .. (State.Bar ~= "" and State.Bar or "-"))
-    Config.FurnaceName = Gui.text("Furnace", Config.FurnaceName)
-    Config.DepositAction = Gui.text("Deposit action", Config.DepositAction)
 end
 
 Gui.show("Smelter", function()
@@ -159,7 +157,7 @@ while API.Read_LoopyLoop() do
 
     if Items.find(isBar) ~= nil then
         State.Status = "Depositing bars"
-        Interact:Object(Config.FurnaceName, Config.DepositAction)
+        Interact:Object(FurnaceName, DepositAction)
         goto continue
     end
 
@@ -176,7 +174,7 @@ while API.Read_LoopyLoop() do
     end
 
     State.Status = "Opening furnace"
-    Interact:Object(Config.FurnaceName, Config.SmeltAction)
+    Interact:Object(FurnaceName, SmeltAction)
 
     ::continue::
     API.RandomSleep2(100, 200, 200)

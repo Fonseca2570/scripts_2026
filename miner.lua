@@ -3,6 +3,9 @@ local Banking = require("utils.banking")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
+local Objects = require("utils.objects")
+local Player = require("utils.player")
+local Slib = require("slib")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
@@ -15,6 +18,7 @@ local Config = {
     ByLevel = false,
     UseOreBox = true,
     UseRockertunities = true,
+    Entrance = nil,
 }
 
 -- Rock and ore names and levels from the RS3 Wiki.
@@ -91,11 +95,84 @@ local Locations = {
         RockSpot = { x = 3287, y = 3363, z = 0 },
         Bank = { x = 3254, y = 3421, z = 0 },
     },
+    -- Combinations mine both ores of a bar at one mine. Every bar here takes one
+    -- of each ore (RS3 Wiki), and adamant uses luminite, not coal, since 2019.
+    {
+        Name = "Bronze: Lumbridge SE copper + tin",
+        Combo = {
+            { Rock = "Copper rock", RockSpot = { x = 3229, y = 3148, z = 0 } },
+            { Rock = "Tin rock", RockSpot = { x = 3225, y = 3146, z = 0 } },
+        },
+        Bank = { x = 3270, y = 3168, z = 0 },
+    },
+    {
+        Name = "Steel: Lumbridge SW iron + coal",
+        Combo = {
+            { Rock = "Iron rock", RockSpot = { x = 3143, y = 3147, z = 0 } },
+            { Rock = "Coal rock", RockSpot = { x = 3145, y = 3144, z = 0 } },
+        },
+        Bank = { x = 3093, y = 3244, z = 0 },
+    },
+    {
+        Name = "Mithril: Legends' Guild mithril + coal",
+        Combo = {
+            { Rock = "Mithril rock", RockSpot = { x = 2690, y = 3333, z = 0 } },
+            { Rock = "Coal rock", RockSpot = { x = 2710, y = 3333, z = 0 } },
+        },
+        Bank = { x = 2653, y = 3284, z = 0 },
+    },
+    {
+        Name = "Adamant: Anachronia adamantite + luminite",
+        Combo = {
+            { Rock = "Adamantite rock", RockSpot = { x = 3795, y = 4308, z = 0 } },
+            { Rock = "Luminite rock", RockSpot = { x = 3799, y = 4311, z = 0 } },
+        },
+        Bank = { x = 3929, y = 4263, z = 0 },
+    },
+    -- Free-to-play luminite is only in the Dwarven mines under Falador, so these
+    -- combinations climb down an entrance and each ore banks at its nearest bank.
+    -- Runite needs 60 Mining for the Mining Guild.
+    {
+        Name = "Rune (F2P): Mining Guild runite + Dwarven luminite",
+        Combo = {
+            {
+                Rock = "Runite rock",
+                RockSpot = { x = 3030, y = 9733, z = 0 },
+                Bank = { x = 3015, y = 3357, z = 0 },
+                Entrance = { Tile = { x = 3020, y = 3339, z = 0 }, Object = "Ladder" },
+            },
+            {
+                Rock = "Luminite rock",
+                RockSpot = { x = 3036, y = 9764, z = 0 },
+                Bank = { x = 3015, y = 3357, z = 0 },
+                Entrance = { Tile = { x = 3060, y = 3378, z = 0 }, Object = "Staircase" },
+            },
+        },
+    },
+    {
+        Name = "Adamant (F2P): Varrock SE adamantite + Dwarven luminite",
+        Combo = {
+            {
+                Rock = "Adamantite rock",
+                RockSpot = { x = 3291, y = 3361, z = 0 },
+                Bank = { x = 3254, y = 3421, z = 0 },
+            },
+            {
+                Rock = "Luminite rock",
+                RockSpot = { x = 3036, y = 9764, z = 0 },
+                Bank = { x = 3015, y = 3357, z = 0 },
+                Entrance = { Tile = { x = 3060, y = 3378, z = 0 }, Object = "Staircase" },
+            },
+        },
+    },
 }
 
 -- Rockertunity highlight ids and the stamina threshold come from community
 -- mining scripts. Clicking a rock refills stamina, so click again when it runs low.
 local RockertunityIds = { 7164, 7165 }
+local HighlightType = 4
+local ObjectType = 0
+local RockertunityRange = 2
 local LowStamina = 200
 local StaminaLevel = 15
 local MineAction = "Mine"
@@ -120,6 +197,7 @@ local State = {
     Status = "Paused",
     Location = 1,
     OreBoxFull = false,
+    Combo = nil,
 }
 
 local function miningLevel()
@@ -178,23 +256,73 @@ local function depositAtBank()
     end
 end
 
+-- A part can bring its own bank and entrance when its ore is mined somewhere
+-- else than the other ore of the combination.
+local function useComboRock(part)
+    Config.Rock = part.Rock
+    Config.RockSpot = Movement.copyTile(part.RockSpot)
+    Config.Entrance = part.Entrance
+    if part.Bank ~= nil then
+        Config.Bank = Movement.copyTile(part.Bank)
+    end
+end
+
+local function bankedAmount(oreName)
+    local item = Banking.findItem(function(candidate)
+        return candidate.name == oreName
+    end)
+    return item and item.amount or 0
+end
+
+-- Each trip mines one ore of the combination until the inventory is full, and
+-- picks the one the bank has fewer of, so the two even out over the trips.
+local function chooseComboRock()
+    if State.Combo == nil then
+        return
+    end
+
+    API.RandomSleep2(600, 200, 200)
+    local fewest, fewestAmount = nil, math.huge
+    for _, part in ipairs(State.Combo) do
+        local amount = bankedAmount(findRock(part.Rock).Ore)
+        if amount < fewestAmount then
+            fewest, fewestAmount = part, amount
+        end
+    end
+    useComboRock(fewest)
+end
+
 -- A rockertunity highlights one rock near the one being mined. Clicking that
--- rock gives one much stronger hit.
+-- rock gives one much stronger hit. The highlight is a nameless object of its
+-- own, so the click goes to the rock under it, on the rock's own tile.
 local function mineRockertunity()
     if not Config.UseRockertunities then
         return false
     end
 
-    for _, highlight in ipairs(API.GetAllObjArray1(RockertunityIds, 25, { 4 }) or {}) do
-        if Interact:Object(Config.Rock, MineAction, highlight.Tile_XYZ, 1) then
-            return true
-        end
+    local highlight = (API.GetAllObjArray1(RockertunityIds, 25, { HighlightType }) or {})[1]
+    if highlight == nil then
+        return false
     end
-    return false
+
+    local rocks = API.ReadAllObjectsArray({ ObjectType }, { -1 }, {}) or {}
+    local rock = Objects.nearestTo(rocks, highlight.Tile_XYZ, RockertunityRange, function(object)
+        return object.Name == Config.Rock
+    end)
+    if rock == nil then
+        Slib:Warn(("[Miner] No %s under the rockertunity at %.0f, %.0f"):format(
+            Config.Rock, highlight.Tile_XYZ.x, highlight.Tile_XYZ.y))
+        return false
+    end
+
+    Interact:Object(rock.Name, MineAction, rock.Tile_XYZ, 1)
+    API.RandomSleep2(1200, 300, 300)
+    return true
 end
 
 local function mine()
     Interact:Object(Config.Rock, MineAction)
+    Player.waitUntilBusy()
 end
 
 -- Stamina starts at Mining level 15. Below that, or when the bar is not shown,
@@ -210,15 +338,24 @@ end
 local function applyLocation(index)
     local location = Locations[index]
     State.Location = index
+    State.Combo = location.Combo
+    Config.Entrance = nil
+    if location.Bank ~= nil then
+        Config.Bank = Movement.copyTile(location.Bank)
+    end
+    if location.Combo ~= nil then
+        useComboRock(location.Combo[1])
+        return
+    end
     Config.Rock = location.Rock
     Config.RockSpot = Movement.copyTile(location.RockSpot)
-    Config.Bank = Movement.copyTile(location.Bank)
 end
 
+-- Combinations are picked by hand, so "By level" only considers single rocks.
 local function bestLocationForLevel(level)
     local best = 1
     for i, location in ipairs(Locations) do
-        if findRock(location.Rock).Level <= level then
+        if location.Combo == nil and findRock(location.Rock).Level <= level then
             best = i
         end
     end
@@ -259,6 +396,11 @@ local function drawRocks()
     ImGui.SeparatorText("Rocks")
     drawRockMode()
     if Config.ByLevel then
+        return
+    end
+
+    if State.Combo ~= nil then
+        ImGui.Text("This trip: " .. Config.Rock .. " until the inventory is full")
         return
     end
 
@@ -327,15 +469,15 @@ while API.Read_LoopyLoop() do
             end
         end
 
-        if not Movement.isNear(Config.Bank, Config.AreaRadius) then
+        if not Movement.goTo(Config.Bank, Config.AreaRadius, Config.Entrance) then
             State.Status = "Walking to bank"
-            Movement.moveTo(Config.Bank)
             goto continue
         end
 
         State.Status = "Banking"
         if Bank:IsOpen() then
             depositAtBank()
+            chooseComboRock()
             goto continue
         end
 
@@ -350,16 +492,16 @@ while API.Read_LoopyLoop() do
             State.Status = "Mining rockertunity"
         elseif isStaminaLow() then
             State.Status = "Refreshing stamina"
-            mine()
+            Interact:Object(Config.Rock, MineAction)
+            API.RandomSleep2(1200, 300, 300)
         end
         goto continue
     end
 
     followLevel()
 
-    if not Movement.isNear(Config.RockSpot, Config.AreaRadius) then
+    if not Movement.goTo(Config.RockSpot, Config.AreaRadius, Config.Entrance) then
         State.Status = "Walking to rocks"
-        Movement.moveTo(Config.RockSpot)
         goto continue
     end
 

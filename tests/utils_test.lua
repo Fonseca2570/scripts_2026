@@ -12,6 +12,10 @@ local bank = {}
 local boxAccepts = true
 local bankOpen, escapeCloses = false, true
 local inventory = {}
+local busyAfter = nil
+local playerNear = true
+local playerCoord = { x = 1, y = 2, z = 3 }
+local idleChecks = 0
 
 local fakeApi = {
     RandomSleep2 = function() end,
@@ -29,7 +33,13 @@ local fakeApi = {
         end
     end,
     Container_Get_all = function() return bank end,
-    PlayerCoord = function() return { x = 1, y = 2, z = 3 } end,
+    PlayerCoord = function() return playerCoord end,
+    ReadPlayerAnim = function()
+        idleChecks = idleChecks + 1
+        return (busyAfter ~= nil and idleChecks >= busyAfter) and 1 or 0
+    end,
+    ReadPlayerMovin2 = function() return false end,
+    isProcessing = function() return false end,
     OFF_ACT_GeneralInterface_route = 0,
     DoAction_Inventory1 = function(id)
         record("DoAction_Inventory1", id)
@@ -46,7 +56,7 @@ local fakeApi = {
 local fakeSlib = {
     IsPlayerInArea = function(_, x, y, z, radius)
         record("IsPlayerInArea", x, y, z, radius)
-        return true
+        return playerNear
     end,
     MoveTo = function(_, x, y, z) record("MoveTo", x, y, z) end,
 }
@@ -75,6 +85,10 @@ Bank = {
     IsOpen = function() return bankOpen end,
 }
 
+FFPOINT = {
+    new = function(_, x, y, z) return { x = x, y = y, z = z } end,
+}
+
 local comboPick = nil
 ImGui = {
     Combo = function(_, current) return comboPick ~= nil, comboPick or current end,
@@ -90,6 +104,7 @@ local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
 local Objects = require("utils.objects")
+local Player = require("utils.player")
 
 local failures, total = 0, 0
 
@@ -132,6 +147,49 @@ check("isNear passes tile and radius", table.concat(calls[1], ","), "IsPlayerInA
 reset()
 Movement.moveTo({ x = 4, y = 5, z = 1 })
 check("moveTo passes tile", table.concat(calls[1], ","), "MoveTo,4,5,1")
+
+local ladder = { Tile = { x = 3020, y = 3339, z = 0 }, Object = "Ladder" }
+local surface = { x = 3015, y = 3357, z = 0 }
+local mine = { x = 3030, y = 9733, z = 0 }
+
+for _, tt in ipairs({
+    {
+        name = "goTo is done when near a surface tile",
+        player = { x = 3016, y = 3357, z = 0 }, near = true, tile = surface, entrance = ladder,
+        expected = true, expectedCall = "IsPlayerInArea,3015,3357,0,20",
+    },
+    {
+        name = "goTo walks to a surface tile that is far away",
+        player = { x = 3100, y = 3400, z = 0 }, near = false, tile = surface, entrance = nil,
+        expected = false, expectedCall = "MoveTo,3015,3357,0",
+    },
+    {
+        name = "goTo climbs down the entrance to reach an underground tile",
+        player = { x = 3020, y = 3340, z = 0 }, near = true, tile = mine, entrance = ladder,
+        expected = false, expectedCall = "Object,Ladder,Climb-down",
+    },
+    {
+        name = "goTo walks to the entrance when it is far away",
+        player = { x = 3100, y = 3400, z = 0 }, near = false, tile = mine, entrance = ladder,
+        expected = false, expectedCall = "MoveTo,3020,3339,0",
+    },
+    {
+        name = "goTo climbs up to reach a surface tile from underground",
+        player = { x = 3030, y = 9735, z = 0 }, near = false, tile = surface, entrance = ladder,
+        expected = false, expectedCall = "Object,Ladder,Climb-up",
+    },
+    {
+        name = "goTo without an entrance walks on the current layer",
+        player = { x = 3030, y = 9735, z = 0 }, near = false, tile = surface, entrance = nil,
+        expected = false, expectedCall = "MoveTo,3015,3357,0",
+    },
+}) do
+    reset()
+    playerCoord, playerNear = tt.player, tt.near
+    check(tt.name, Movement.goTo(tt.tile, 20, tt.entrance), tt.expected)
+    check(tt.name .. " (call)", table.concat(calls[#calls], ","), tt.expectedCall)
+end
+playerCoord, playerNear = { x = 1, y = 2, z = 3 }, true
 
 -- Items
 
@@ -315,6 +373,49 @@ for _, tt in ipairs({
     local nearest = Objects.nearest(tt.objects, function(object) return object.Name == "Fire" end)
     check(tt.name, nearest and nearest.Tile_XYZ, tt.expectedDistance)
 end
+
+for _, tt in ipairs({
+    {
+        name = "nearestTo picks the rock closest to the tile",
+        objects = {
+            { Name = "Iron rock", Tile_XYZ = { x = 12, y = 10 } },
+            { Name = "Iron rock", Tile_XYZ = { x = 10, y = 11 } },
+            { Name = "Coal rock", Tile_XYZ = { x = 10, y = 10 } },
+        },
+        expectedX = 10,
+    },
+    {
+        name = "nearestTo ignores matches beyond the range",
+        objects = { { Name = "Iron rock", Tile_XYZ = { x = 14, y = 10 } } },
+        expectedX = nil,
+    },
+}) do
+    local nearest = Objects.nearestTo(tt.objects, { x = 10, y = 10 }, 2, function(object)
+        return object.Name == "Iron rock"
+    end)
+    check(tt.name, nearest and nearest.Tile_XYZ.x, tt.expectedX)
+end
+
+-- Player
+
+for _, tt in ipairs({
+    { name = "waitUntilBusy returns once the player animates", busyAfter = 3, expected = true, expectedChecks = 3 },
+    { name = "waitUntilBusy gives up when the player stays idle", busyAfter = nil, expected = false, expectedChecks = 20 },
+}) do
+    busyAfter, idleChecks = tt.busyAfter, 0
+    check(tt.name, Player.waitUntilBusy(), tt.expected)
+    check(tt.name .. " (checks)", idleChecks, tt.expectedChecks)
+end
+
+for _, tt in ipairs({
+    { name = "waitUntilIdle returns at once when the player is idle", busyAfter = nil, expected = true, expectedChecks = 1 },
+    { name = "waitUntilIdle gives up while the player stays busy", busyAfter = 1, expected = false, expectedChecks = 60 },
+}) do
+    busyAfter, idleChecks = tt.busyAfter, 0
+    check(tt.name, Player.waitUntilIdle(), tt.expected)
+    check(tt.name .. " (checks)", idleChecks, tt.expectedChecks)
+end
+busyAfter = nil
 
 -- Gui
 
