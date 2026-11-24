@@ -167,13 +167,15 @@ local Locations = {
     },
 }
 
--- Rockertunity highlight ids and the stamina threshold come from community
--- mining scripts. Clicking a rock refills stamina, so click again when it runs low.
+-- Rockertunity highlight ids come from community mining scripts. Clicking a
+-- rock refills stamina, so click again when it runs low. Maximum stamina grows
+-- with Mining level, so low is a share of the highest reading seen, not a
+-- fixed number.
 local RockertunityIds = { 7164, 7165 }
 local HighlightType = 4
 local ObjectType = 0
 local RockertunityRange = 2
-local LowStamina = 200
+local LowStaminaShare = 0.3
 local StaminaLevel = 15
 local MineAction = "Mine"
 
@@ -197,6 +199,7 @@ local State = {
     Status = "Paused",
     Location = 1,
     OreBoxFull = false,
+    MaxStamina = 0,
     Combo = nil,
 }
 
@@ -332,7 +335,11 @@ local function isStaminaLow()
         return false
     end
     local stamina = API.LocalPlayer_HoverProgress()
-    return stamina > 0 and stamina <= LowStamina
+    if stamina <= 0 then
+        return false
+    end
+    State.MaxStamina = math.max(State.MaxStamina, stamina)
+    return stamina <= State.MaxStamina * LowStaminaShare
 end
 
 local function applyLocation(index)
@@ -419,6 +426,7 @@ local function drawMode()
     end
     Config.UseOreBox = Gui.checkbox("Fill ore box", Config.UseOreBox)
     Config.UseRockertunities = Gui.checkbox("Use rockertunities", Config.UseRockertunities)
+    ImGui.Text(("Stamina: %.0f (max seen %.0f)"):format(API.LocalPlayer_HoverProgress(), State.MaxStamina))
 end
 
 local function drawBank()
