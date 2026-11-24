@@ -8,7 +8,7 @@ Shared helpers used by `fisher.lua`, `woodcutter.lua`, `cooker.lua`, `smelter.lu
 
 | Module | Require | Functions |
 | --- | --- | --- |
-| `utils/movement.lua` | `require("utils.movement")` | `isNear(tile, radius)`, `moveTo(tile)`, `copyTile(tile)`, `isUnderground(tile)` (y above 6400), `goTo(tile, radius, entrance)` (walks and returns true on arrival; with `entrance = { Tile, Object }` it climbs down the object at that surface tile, or up the nearest one, to cross between the surface and an underground map) |
+| `utils/movement.lua` | `require("utils.movement")` | `isNear(tile, radius)`, `moveTo(tile)` (Slib:MoveTo to 3 tiles short of it on the player's side, since spot tiles are usually the object itself and can't be stood on), `copyTile(tile)`, `isUnderground(tile)` (y above 6400), `goTo(tile, radius, entrance)` (walks and returns true on arrival; with `entrance = { Tile, Object }` it climbs down the object at that surface tile, or up the nearest one, to cross between the surface and an underground map) |
 | `utils/items.lua` | `require("utils.items")` | `lowerName(item)`, `find(matches)`, `dropAll(matches)`, `fill(box, matches)` (wood/ore box) |
 | `utils/objects.lua` | `require("utils.objects")` | `nearest(objects, matches)`, `nearestTo(objects, tile, maxDistance, matches)` (measured from a tile, not the player) |
 | `utils/player.lua` | `require("utils.player")` | `isBusy()` (animating, moving or processing), `waitUntilBusy()` (waits up to ~3s after a click so the next loop doesn't click again), `waitUntilIdle()` (waits up to ~10s for an action already under way to finish) |
@@ -26,7 +26,7 @@ Stand between a bank and a range or fire. Each trip deposits the inventory, with
 
 ## miner.lua
 
-Mines one rock type at a wiki location. Locations run from Lumbridge copper up to Varrock adamantite, and "By level" moves to the best one your Mining level allows.
+Mines one rock type at a wiki location. Locations run from Lumbridge copper up to Varrock adamantite (iron is the Varrock south-west mine, banking at Varrock west), and "By level" moves to the best one your Mining level allows.
 
 The Location dropdown also has **bar combinations**, which mine both ores of a bar at one mine. Each bar takes one of each ore (RS3 Wiki):
 

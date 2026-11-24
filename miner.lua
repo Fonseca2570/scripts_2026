@@ -60,10 +60,10 @@ local Locations = {
         Bank = { x = 3270, y = 3168, z = 0 },
     },
     {
-        Name = "Lumbridge SW iron",
+        Name = "Varrock SW iron",
         Rock = "Iron rock",
-        RockSpot = { x = 3145, y = 3149, z = 0 },
-        Bank = { x = 3093, y = 3244, z = 0 },
+        RockSpot = { x = 3181, y = 3372, z = 0 },
+        Bank = { x = 3187, y = 3440, z = 0 },
     },
     {
         Name = "Falador west silver",

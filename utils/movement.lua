@@ -9,13 +9,33 @@ local UndergroundY = 6400
 local ClimbDown = "Climb-down"
 local ClimbUp = "Climb-up"
 local EntranceRange = 5
+local StandOff = 3
 
 function Movement.isNear(tile, radius)
     return Slib:IsPlayerInArea(tile.x, tile.y, tile.z, radius)
 end
 
+local function towards(from, to)
+    if to > from then
+        return 1
+    end
+    if to < from then
+        return -1
+    end
+    return 0
+end
+
+-- Spot tiles are usually the rock, tree, booth or ladder itself, which the
+-- player can't stand on, and Slib:MoveTo keeps clicking until the player is on
+-- the exact tile. So stop StandOff tiles short of it on the player's side,
+-- far enough to clear objects bigger than one tile.
 function Movement.moveTo(tile)
-    Slib:MoveTo(tile.x, tile.y, tile.z)
+    local player = API.PlayerCoord()
+    Slib:MoveTo(
+        tile.x + StandOff * towards(tile.x, player.x),
+        tile.y + StandOff * towards(tile.y, player.y),
+        tile.z
+    )
 end
 
 function Movement.copyTile(tile)

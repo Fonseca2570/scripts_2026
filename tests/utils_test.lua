@@ -144,9 +144,17 @@ reset()
 Movement.isNear({ x = 1, y = 2, z = 0 }, 20)
 check("isNear passes tile and radius", table.concat(calls[1], ","), "IsPlayerInArea,1,2,0,20")
 
-reset()
-Movement.moveTo({ x = 4, y = 5, z = 1 })
-check("moveTo passes tile", table.concat(calls[1], ","), "MoveTo,4,5,1")
+for _, tt in ipairs({
+    { name = "moveTo stops 3 tiles south west of the object", player = { x = 3000, y = 3300, z = 0 }, expected = "MoveTo,3007,3307,1" },
+    { name = "moveTo stops 3 tiles north east of the object", player = { x = 3020, y = 3320, z = 0 }, expected = "MoveTo,3013,3313,1" },
+    { name = "moveTo stops 3 tiles south of the object", player = { x = 3010, y = 3200, z = 0 }, expected = "MoveTo,3010,3307,1" },
+    { name = "moveTo stops 3 tiles east of the object", player = { x = 3050, y = 3310, z = 0 }, expected = "MoveTo,3013,3310,1" },
+}) do
+    reset()
+    playerCoord = tt.player
+    Movement.moveTo({ x = 3010, y = 3310, z = 1 })
+    check(tt.name, table.concat(calls[1], ","), tt.expected)
+end
 
 local ladder = { Tile = { x = 3020, y = 3339, z = 0 }, Object = "Ladder" }
 local surface = { x = 3015, y = 3357, z = 0 }
@@ -161,7 +169,7 @@ for _, tt in ipairs({
     {
         name = "goTo walks to a surface tile that is far away",
         player = { x = 3100, y = 3400, z = 0 }, near = false, tile = surface, entrance = nil,
-        expected = false, expectedCall = "MoveTo,3015,3357,0",
+        expected = false, expectedCall = "MoveTo,3018,3360,0",
     },
     {
         name = "goTo climbs down the entrance to reach an underground tile",
@@ -171,7 +179,7 @@ for _, tt in ipairs({
     {
         name = "goTo walks to the entrance when it is far away",
         player = { x = 3100, y = 3400, z = 0 }, near = false, tile = mine, entrance = ladder,
-        expected = false, expectedCall = "MoveTo,3020,3339,0",
+        expected = false, expectedCall = "MoveTo,3023,3342,0",
     },
     {
         name = "goTo climbs up to reach a surface tile from underground",
@@ -181,7 +189,7 @@ for _, tt in ipairs({
     {
         name = "goTo without an entrance walks on the current layer",
         player = { x = 3030, y = 9735, z = 0 }, near = false, tile = surface, entrance = nil,
-        expected = false, expectedCall = "MoveTo,3015,3357,0",
+        expected = false, expectedCall = "MoveTo,3018,3360,0",
     },
 }) do
     reset()
