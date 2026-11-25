@@ -6,7 +6,29 @@ API.SetDrawTrackedSkills(true)
 
 local Config = {
     ReheatBelow = 0,
+    Metal = "Bronze",
 }
+
+-- Smithing level at which new items of each metal start at maximum heat, from
+-- the RS3 Wiki's Heat page ("Creation at full heat").
+local Metals = {
+    { Name = "Bronze", FullHeatLevel = 6 },
+    { Name = "Iron", FullHeatLevel = 16 },
+    { Name = "Steel", FullHeatLevel = 28 },
+    { Name = "Mithril", FullHeatLevel = 36 },
+    { Name = "Adamant", FullHeatLevel = 41 },
+    { Name = "Rune", FullHeatLevel = 59 },
+    { Name = "Orikalkum", FullHeatLevel = 63 },
+    { Name = "Necronium", FullHeatLevel = 76 },
+    { Name = "Bane", FullHeatLevel = 87 },
+    { Name = "Elder rune", FullHeatLevel = 98 },
+    { Name = "Primal", FullHeatLevel = 108 },
+}
+
+local MetalNames = {}
+for i, metal in ipairs(Metals) do
+    MetalNames[i] = metal.Name
+end
 
 local AnvilName = "Anvil"
 local SmithAction = "Smith"
@@ -25,6 +47,8 @@ local BeginButton = 163
 local State = {
     Running = false,
     Status = "Paused",
+    Heat = 0,
+    MaxHeat = 0,
 }
 
 local function level(skill)
@@ -32,17 +56,25 @@ local function level(skill)
 end
 
 -- High heat, where each strike makes double progress, starts at two thirds of
--- the unbonused maximum heat (RS3 Wiki). Material bonuses raise the maximum but
--- not this threshold.
-local function highHeat()
-    return math.floor((300 + 3 * level("SMITHING") + 3 * level("FIREMAKING")) * 2 / 3)
-end
+-- the maximum heat (RS3 Wiki). The heat bar isn't in the wiki's heat units, so
+-- the maximum is the highest reading seen, which a visit to the forge reaches.
+local HighHeatShare = 2 / 3
 
 local function reheatBelow()
     if Config.ReheatBelow > 0 then
         return Config.ReheatBelow
     end
-    return highHeat()
+    return State.MaxHeat * HighHeatShare
+end
+
+local function fullHeatLevel()
+    return Metals[Gui.indexOf(MetalNames, Config.Metal) + 1].FullHeatLevel
+end
+
+-- Items that start at maximum heat are only smithed at the anvil, never taken
+-- to the forge.
+local function startsAtFullHeat()
+    return level("SMITHING") >= fullHeatLevel()
 end
 
 local function heat()
@@ -59,8 +91,9 @@ end
 
 -- The heat bar is only shown while smithing, so it is only read then.
 local function isHeatLow()
-    local current = heat()
-    return current > 0 and current < reheatBelow()
+    State.Heat = heat()
+    State.MaxHeat = math.max(State.MaxHeat, State.Heat)
+    return State.Heat > 0 and State.Heat < reheatBelow()
 end
 
 -- Heat only goes into the first unfinished item, and the forge needs a few
@@ -109,7 +142,13 @@ end
 local function drawSmithing()
     ImGui.SeparatorText("Smithing")
     ImGui.Text("Smithing level: " .. level("SMITHING"))
-    ImGui.Text("Heat now: " .. heat() .. "  (high heat from " .. highHeat() .. ")")
+    Config.Metal = Gui.combo("Metal", Config.Metal, MetalNames)
+    if startsAtFullHeat() then
+        ImGui.Text("Starts at full heat: anvil only, no forge.")
+    else
+        ImGui.Text("Starts at full heat from level " .. fullHeatLevel() .. ".")
+    end
+    ImGui.Text(("Heat: %.0f (max seen %.0f, reheats below %.0f)"):format(State.Heat, State.MaxHeat, reheatBelow()))
 
     local changed, value = ImGui.InputInt("Reheat below (0 = high heat)", Config.ReheatBelow, 10, 50)
     if changed then
@@ -139,7 +178,7 @@ while API.Read_LoopyLoop() do
     end
 
     if Items.find(isUnfinished) ~= nil then
-        if isHeatLow() then
+        if not startsAtFullHeat() and isHeatLow() then
             State.Status = "Heating"
             reheat()
             goto continue

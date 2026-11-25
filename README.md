@@ -63,8 +63,9 @@ Stand between an anvil and a forge, for example in the Artisans' Workshop. Pick 
 - **Unfinished item in the backpack:** it keeps smithing it with "Smith" on the anvil.
 - **No unfinished item:** it opens the smithing window ("Open smithing interface" on the anvil) and presses Begin Project, which repeats the last item picked. If no item appears, for example because the bars ran out, it stops.
 - **Heat:** while smithing, it reheats with "Heat" on the forge whenever the heat drops below the threshold, and waits for the heating to finish before going back to the anvil.
+- **Full heat start:** pick the **Metal** in the GUI. Once your Smithing level reaches the level where new items of that metal start at maximum heat (RS3 Wiki Heat page: bronze 6, iron 16, steel 28, mithril 36, adamant 41, rune 59, orikalkum 63, necronium 76, bane 87, elder rune 98, primal 108), it never goes to the forge and only smiths at the anvil.
 
-High heat, where each strike makes double progress, starts at two thirds of the unbonused maximum heat: 2/3 × (300 + 3 × Smithing + 3 × Firemaking), per the RS3 Wiki. That is the default threshold. The heat is read from `API.LocalPlayer_HoverProgress()`, which `api.lua` describes as "smithing heat" without a unit. The GUI shows the live reading, and **Reheat below** overrides the threshold if the reading turns out to be a percent. The smithing window numbers (interface 37, Begin Project 163, status 85) are the same community values `smelter.lua` uses.
+High heat, where each strike makes double progress, starts at two thirds of the maximum heat (RS3 Wiki). The heat is read from the bar over the player (`API.LocalPlayer_HoverProgress()`), which isn't in the wiki's heat units, so the script reheats once the bar drops below two thirds of the highest reading seen this run. A visit to the forge fills the bar, so the maximum settles after the first reheat. The GUI shows the reading, the maximum and the threshold, and **Reheat below** sets a fixed threshold instead. The smithing window numbers (interface 37, Begin Project 163, status 85) are the same community values `smelter.lua` uses.
 
 ## lodestones.lua
 
