@@ -1,7 +1,7 @@
 ScriptName = "Basic Combat"
 Author = "Spectre011"
-ScriptVersion = "1.2.0"
-ReleaseDate = "20-11-2026"
+ScriptVersion = "1.3.0"
+ReleaseDate = "25-11-2026"
 DiscordHandle = "not_spectre011"
 --[[
 Changelog:
@@ -24,6 +24,14 @@ v1.1.0 - 31-08-2026
 v1.2.0 - 20-11-2026
     - Added a Bury tab that buries bones and scatters ashes from the list.
     - Added Bones and Ashes static lists.
+
+v1.3.0 - 25-11-2026
+    - The Bury tab is now one checkbox per bone and ash, all on by default.
+    - While Bury is on, the checked bones and ashes are looted too.
+    - Settings, including the Options tab, are saved to
+      "Spectre's Basic Combat.settings" next to the script instead of being
+      written into the script itself. Settings saved inline by older versions
+      are loaded until the first save.
 ]]
 
 local API = require("api")
@@ -325,6 +333,8 @@ local State = {
     LastAlch = 0,                -- os.clock() of the last High Alch pass
     LastNote = 0,                -- os.clock() of the last Note pass
     LastBury = 0,                -- os.clock() of the last Bury pass
+    BuryOff = {},                -- Bone and ash ids unchecked on the Bury tab
+    BuryItems = {},              -- { Id, Name } per bone and ash, for the checkboxes
     LastNotepaperWarn = 0,       -- os.clock() of the last "no notepaper" warning
     Sustain = {                  -- Sustain toggles (set from the Options tab)
         Excalibur = false,       -- Heal HP with Excalibur
@@ -361,18 +371,14 @@ end
 -- #endregion
 
 -- #region Persistence ------------------------------------------------------
--- User settings are stored inline in this same file, between the two markers
--- below. SaveConfig rewrites that block on disk, so the next run has SavedConfig
--- already populated by the time the file is loaded. This keeps the script a
--- single self-contained file with no external settings file.
--- The block is generated - do not edit it by hand.
+-- User settings are saved to SettingsPath, next to this script. Older versions
+-- stored them inline between the two markers below, so that block is still read
+-- when there is no settings file yet. Nothing writes it any more.
 --@@CONFIG_START
 local SavedConfig = {["Priority"]={[1]="Troll atirador"},["TargetMode"]="random",["Thresholds"]={["Health"]=50,["Prayer"]=25},["Lists"]={["Note"]={["Entries"]={},["Enabled"]=false},["Loot"]={["Entries"]={},["Enabled"]=true},["Alch"]={["Entries"]={},["Enabled"]=false}},["Buffs"]={},["Sustain"]={["ElvenShard"]=false,["EatFood"]=false,["Excalibur"]=false,["PrayerPotion"]=false}}
 --@@CONFIG_END
 
-local ScriptPath = os.getenv("USERPROFILE") .. "\\MemoryError\\Lua_Scripts\\Spectre's Basic Combat.lua"
-local ConfigStartMarker = "--@@CONFIG_START"
-local ConfigEndMarker = "--@@CONFIG_END"
+local SettingsPath = os.getenv("USERPROFILE") .. "\\MemoryError\\Lua_Scripts\\Spectre's Basic Combat.settings"
 
 -- Serialize a value (number/boolean/string/table) to a Lua literal string.
 local function Serialize(Value)
@@ -405,26 +411,12 @@ local function BuildListConfig()
     for Key, List in pairs(State.Lists) do
         Data[Key] = { Entries = List.Entries, Enabled = List.Enabled }
     end
+    Data.Bury.Off = State.BuryOff
     return Data
 end
 
--- Rewrite the inline config block in this script file with the current config.
+-- Write the current settings to SettingsPath as a Lua table literal.
 local function SaveConfig()
-    local File = io.open(ScriptPath, "r")
-    if not File then
-        Slib:Warn("[Config] Could not open script file to save config")
-        return
-    end
-    local Content = File:read("*a")
-    File:close()
-
-    local StartPos = Content:find(ConfigStartMarker, 1, true)
-    local EndPos = Content:find(ConfigEndMarker, 1, true)
-    if not StartPos or not EndPos then
-        Slib:Warn("[Config] Config markers missing, cannot save")
-        return
-    end
-
     local Data = {
         Priority = State.Priority,
         TargetMode = State.TargetMode,
@@ -433,21 +425,42 @@ local function SaveConfig()
         Thresholds = State.Thresholds,
         Buffs = State.Buffs,
     }
-    local NewBlock = ConfigStartMarker .. "\nlocal SavedConfig = " .. Serialize(Data) .. "\n" .. ConfigEndMarker
-    local NewContent = Content:sub(1, StartPos - 1) .. NewBlock .. Content:sub(EndPos + #ConfigEndMarker)
-
-    local Out = io.open(ScriptPath, "w")
+    local Out = io.open(SettingsPath, "w")
     if not Out then
-        Slib:Warn("[Config] Could not open script file for writing")
+        Slib:Warn("[Config] Could not open " .. SettingsPath .. " for writing")
         return
     end
-    Out:write(NewContent)
+    Out:write("return " .. Serialize(Data) .. "\n")
     Out:close()
 end
 
--- Copy SavedConfig into State, ignoring anything malformed so a damaged block
--- cannot stop the script from starting.
+-- The settings file, or nil when there is none or it does not parse. It is
+-- loaded with an empty environment, so it can only build a table.
+local function ReadSettingsFile()
+    local File = io.open(SettingsPath, "r")
+    if not File then
+        return nil
+    end
+    local Content = File:read("*a")
+    File:close()
+
+    local Chunk = load(Content, "settings", "t", {})
+    if Chunk == nil then
+        Slib:Warn("[Config] " .. SettingsPath .. " is damaged, using defaults")
+        return nil
+    end
+    local Ok, Data = pcall(Chunk)
+    if not Ok or type(Data) ~= "table" then
+        Slib:Warn("[Config] " .. SettingsPath .. " is damaged, using defaults")
+        return nil
+    end
+    return Data
+end
+
+-- Copy the saved settings into State, ignoring anything malformed so a damaged
+-- file cannot stop the script from starting.
 local function LoadConfig()
+    local SavedConfig = ReadSettingsFile() or SavedConfig
     if type(SavedConfig) ~= "table" then
         return
     end
@@ -472,6 +485,11 @@ local function LoadConfig()
                 end
                 if Saved.Enabled ~= nil then
                     List.Enabled = Saved.Enabled == true
+                end
+                if Key == "Bury" and type(Saved.Off) == "table" then
+                    for Id in pairs(Saved.Off) do
+                        State.BuryOff[Id] = true
+                    end
                 end
             end
         end
@@ -770,9 +788,31 @@ local function EntryIds(Entry)
     return { Entry.Id }
 end
 
+-- The Bury list is every bone and ash that is not unchecked on the Bury tab,
+-- not entries, so new ids added to the presets start checked.
+local BuryPresets = { "Bones", "Ashes" }
+
+local function RebuildBuryIds()
+    local Ids, Seen = {}, {}
+    for _, Name in ipairs(BuryPresets) do
+        for _, Id in ipairs(FindPreset(Name).Ids) do
+            if not State.BuryOff[Id] then
+                Seen[Id] = true
+                Ids[#Ids + 1] = Id
+            end
+        end
+    end
+    State.Lists.Bury.Ids = Ids
+    State.Lists.Bury.IdSet = Seen
+end
+
 -- Flatten a list's entries to a plain id array plus a lookup set. Called only
 -- when the list changes, so the main loop never expands the presets itself.
 local function RebuildListIds(Key)
+    if Key == "Bury" then
+        RebuildBuryIds()
+        return
+    end
     local List = State.Lists[Key]
     local Ids, Seen = {}, {}
     for _, Entry in ipairs(List.Entries) do
@@ -916,6 +956,7 @@ end
 local ConfigChangingActions = {
     add = true, remove = true, up = true, down = true, clear = true,
     listadd = true, listaddpreset = true, listremove = true, listclear = true,
+    burycheck = true,
     savesettings = true,
     togglemode = true,
 }
@@ -948,6 +989,9 @@ local function ProcessActions()
             RemoveFromList(Action.Payload.Key, Action.Payload.Value)
         elseif Kind == "listclear" then
             ClearList(Action.Payload.Key)
+        elseif Kind == "burycheck" then
+            State.BuryOff[Action.Payload.Id] = (not Action.Payload.Value) or nil
+            RebuildBuryIds()
         elseif Kind == "togglemode" then
             CycleTargetMode()
         elseif Kind == "toggle" then
@@ -1235,10 +1279,29 @@ local function BuryListed()
     API.DoAction_Inventory1(Ids[1], 0, 1, API.OFF_ACT_GeneralInterface_route)
 end
 
+-- The Loot list plus, while Bury is on, the checked bones and ashes, since they
+-- have to be picked up to be buried.
+local function LootIds()
+    local Loot, Bury = State.Lists.Loot, State.Lists.Bury
+    if not Bury.Enabled or #Bury.Ids == 0 then
+        return Loot.Ids
+    end
+    local Ids = {}
+    for _, Id in ipairs(Loot.Ids) do
+        Ids[#Ids + 1] = Id
+    end
+    for _, Id in ipairs(Bury.Ids) do
+        if not Loot.IdSet[Id] then
+            Ids[#Ids + 1] = Id
+        end
+    end
+    return Ids
+end
+
 -- Loot the configured item ids off the ground around the player.
 local function LootGround()
     -- Expanded ids, not entries: a saved list whose preset is gone has none.
-    local Ids = State.Lists.Loot.Ids
+    local Ids = LootIds()
     if #Ids == 0 then
         return false
     end
@@ -1624,6 +1687,17 @@ local function DrawItemListToggle(Key, Text, Tooltip)
     end
 end
 
+-- One checkbox per bone and ash, checked unless the player unchecked it.
+local function DrawBuryItems()
+    ImGui.SeparatorText("Bones and Ashes")
+    for _, Entry in ipairs(State.BuryItems) do
+        local Changed, Value = ImGui.Checkbox(Entry.Name .. "##bury" .. Entry.Id, not State.BuryOff[Entry.Id])
+        if Changed then
+            QueueAction("burycheck", { Id = Entry.Id, Value = Value })
+        end
+    end
+end
+
 -- A checkbox bound to a Sustain toggle, saving the config when it changes.
 local function SustainCheckbox(Label, Key, Tooltip)
     local Changed, Value = ImGui.Checkbox(Label, State.Sustain[Key])
@@ -1745,10 +1819,9 @@ local function DrawGui()
                 end
                 if ImGui.BeginTabItem("Bury") then
                     ImGui.Spacing()
-                    DrawItemListToggle("Bury", "Bury / scatter listed items",
-                        "Buries bones and scatters ashes from the inventory")
-                    DrawItemListControls("Bury")
-                    DrawItemList("Bury")
+                    DrawItemListToggle("Bury", "Bury / scatter checked items",
+                        "Loots the checked bones and ashes, then buries\nand scatters them from the inventory")
+                    DrawBuryItems()
                     ImGui.EndTabItem()
                 end
                 if ImGui.BeginTabItem("Options") then
@@ -1782,6 +1855,14 @@ end
 -- is defined above RebuildAllListIds, so the flattened id arrays are built here.
 LoadConfig()
 RebuildAllListIds()
+
+-- Names for the Bury checkboxes, resolved once instead of every frame.
+for _, Name in ipairs(BuryPresets) do
+    for _, Id in ipairs(FindPreset(Name).Ids) do
+        local _, ItemName = ResolveItem(Id)
+        State.BuryItems[#State.BuryItems + 1] = { Id = Id, Name = (ItemName or "Item") .. " (" .. Id .. ")" }
+    end
+end
 
 -- A saved list whose preset was renamed or removed contributes no ids, so say so
 -- rather than letting it sit in the list looking active.
