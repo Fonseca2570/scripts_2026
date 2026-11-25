@@ -4,7 +4,7 @@ Lua scripts for the game client. `api.lua` and `slib.lua` are the client librari
 
 ## utils
 
-Shared helpers used by `fisher.lua`, `woodcutter.lua`, `cooker.lua`, `smelter.lua`, `miner.lua`, `firemaker.lua`, `fletcher.lua` and `smither.lua`:
+Shared helpers used by `fisher.lua`, `woodcutter.lua`, `cooker.lua`, `smelter.lua`, `miner.lua`, `firemaker.lua`, `fletcher.lua`, `smither.lua` and `gemminer.lua`:
 
 | Module | Require | Functions |
 | --- | --- | --- |
@@ -40,6 +40,17 @@ The Location dropdown also has **bar combinations**, which mine both ores of a b
 | Adamant (F2P): adamantite + luminite | Varrock SE (adamantite) and the Dwarven luminite mine | Varrock east for adamantite, Falador east for luminite |
 
 Adamant and rune use luminite instead of coal since the 2019 rework. Free-to-play luminite only exists in the Dwarven mines under Falador, so the F2P combinations climb down an entrance (`Ladder` at 3020,3339 for the Mining Guild, `Staircase` at 3060,3378 for the Dwarven mines) and climb back up to bank. Each ore of a combination can have its own bank. Each trip mines one ore until the inventory is full. After banking, the next trip picks whichever ore the bank has fewer of, so the two even out over the trips. The first trip starts with the first ore. "By level" never picks a combination. When the inventory fills up, it fills the ore box first. Then it either banks (emptying the ore box too) or, in power mining mode, drops the ore. While mining it clicks rockertunity rocks, and clicks the rock again when stamina runs low. A rockertunity is a nameless highlight object (type 4) on top of a rock, so the script clicks the rock of the chosen type nearest to the highlight (within 2 tiles), on the rock's own tile. After every click it waits for the player to start moving or mining, so it doesn't click the rock again straight away. Stamina counts as low at 30% of the highest stamina reading seen this run, because maximum stamina grows with Mining level; the GUI shows the current reading and that maximum. The rockertunity highlight IDs (7164/7165) come from community mining scripts, not from `api.lua`.
+
+## gemminer.lua
+
+Power mines gems in Burthorpe mine, which only has common gem rocks (RS3 Wiki). Start it inside the mine: it mines the nearest "Common gem rock" and never walks or banks. When the backpack is full it cuts every uncut gem your Crafting level allows ("Craft" on the gem, using the tool belt's chisel, confirmed in the Make-X window), then drops all uncut, cut and crushed gems. Opal, jade and red topaz can be crushed while cutting. It stops if the backpack is full of anything else.
+
+| Gem | Crafting level |
+| --- | --- |
+| Uncut lapis lazuli | 1 |
+| Uncut opal | 1 |
+| Uncut jade | 13 |
+| Uncut red topaz | 16 |
 
 ## fletcher.lua
 
