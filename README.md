@@ -43,14 +43,16 @@ Adamant and rune use luminite instead of coal since the 2019 rework. Free-to-pla
 
 ## gemminer.lua
 
-Power mines gems in Burthorpe mine, which only has common gem rocks (RS3 Wiki). Start it inside the mine: it mines the nearest "Common gem rock" and never walks or banks. When the backpack is full it cuts every uncut gem your Crafting level allows ("Craft" on the gem, using the tool belt's chisel, confirmed in the Make-X window), then drops all uncut, cut and crushed gems. Opal, jade and red topaz can be crushed while cutting. It stops if the backpack is full of anything else.
+Mines gems in Burthorpe mine, which only has common gem rocks (RS3 Wiki). Start it inside the mine: it mines the nearest "Common gem rock" and never walks or banks. When the backpack is full it first cuts every uncut gem your Crafting level allows, then makes bolt tips from every cut gem your Fletching level allows (12 stackable tips per gem, which frees the space). Both use "Craft" on the gem with the tool belt's chisel, confirmed in the Make-X window. Only when nothing is left to cut or tip does it drop the gems that remain: lapis lazuli (no bolt tips), crushed gems, and gems above your levels. Bolt tips are never dropped. It stops if the backpack is full of anything else.
 
-| Gem | Crafting level |
-| --- | --- |
-| Uncut lapis lazuli | 1 |
-| Uncut opal | 1 |
-| Uncut jade | 13 |
-| Uncut red topaz | 16 |
+| Gem | Cut (Crafting) | Bolt tips (Fletching) |
+| --- | --- | --- |
+| Lapis lazuli | 1 | none |
+| Opal | 1 | 11, Opal bolt tips |
+| Jade | 13 | 26, Jade bolt tips |
+| Red topaz | 16 | 48, Topaz bolt tips |
+
+Opal, jade and red topaz can be crushed while cutting.
 
 ## fletcher.lua
 

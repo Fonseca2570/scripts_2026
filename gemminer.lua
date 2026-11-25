@@ -10,22 +10,29 @@ API.SetDrawTrackedSkills(true)
 local RockName = "Common gem rock"
 local MineAction = "Mine"
 
--- Common gem rock gems and the Crafting level to cut them, from the RS3 Wiki.
--- Opal, jade and red topaz can fail into a crushed gem.
+-- Common gem rock gems, the Crafting level to cut them and the Fletching level
+-- to make 12 stackable bolt tips from the cut gem, from the RS3 Wiki. Lapis
+-- lazuli has no bolt tips. Opal, jade and red topaz can fail into a crushed gem.
 local Gems = {
-    { Uncut = "Uncut lapis lazuli", Cut = "Lapis lazuli", Level = 1 },
-    { Uncut = "Uncut opal", Cut = "Opal", Level = 1 },
-    { Uncut = "Uncut jade", Cut = "Jade", Level = 13 },
-    { Uncut = "Uncut red topaz", Cut = "Red topaz", Level = 16 },
+    { Uncut = "Uncut lapis lazuli", Cut = "Lapis lazuli gem", CutLevel = 1 },
+    { Uncut = "Uncut opal", Cut = "Opal", CutLevel = 1, TipsLevel = 11 },
+    { Uncut = "Uncut jade", Cut = "Jade", CutLevel = 13, TipsLevel = 26 },
+    { Uncut = "Uncut red topaz", Cut = "Red topaz", CutLevel = 16, TipsLevel = 48 },
 }
 local CrushedGem = "crushed gem"
 
--- "Craft" is the first option on uncut gems and uses the tool belt's chisel.
+-- "Craft" is the first option on uncut and cut gems and uses the tool belt's
+-- chisel: uncut gems are cut, cut gems are made into bolt tips.
 local CraftOption = 1
 
-local CutLevels, GemNames = {}, { [CrushedGem] = true }
+-- Levels to craft each item, keyed by lower-case name. Bolt tips are not gems,
+-- so they are never dropped.
+local Crafts, GemNames = {}, { [CrushedGem] = true }
 for _, gem in ipairs(Gems) do
-    CutLevels[gem.Uncut:lower()] = gem.Level
+    Crafts[gem.Uncut:lower()] = { Skill = "CRAFTING", Level = gem.CutLevel }
+    if gem.TipsLevel ~= nil then
+        Crafts[gem.Cut:lower()] = { Skill = "FLETCHING", Level = gem.TipsLevel }
+    end
     GemNames[gem.Uncut:lower()] = true
     GemNames[gem.Cut:lower()] = true
 end
@@ -39,16 +46,16 @@ local function level(skill)
     return API.XPLevelTable(API.GetSkillXP(skill))
 end
 
-local function isCuttable(item)
-    local cutLevel = CutLevels[Items.lowerName(item)]
-    return cutLevel ~= nil and cutLevel <= level("CRAFTING")
+local function isCraftable(item)
+    local craft = Crafts[Items.lowerName(item)]
+    return craft ~= nil and craft.Level <= level(craft.Skill)
 end
 
 local function isGem(item)
     return GemNames[Items.lowerName(item)] ~= nil
 end
 
-local function cut(gem)
+local function craft(gem)
     if Production.isMakeXOpen() then
         Production.confirm()
     else
@@ -70,10 +77,10 @@ end
 
 Gui.show("Gem Miner", function()
     ImGui.SeparatorText("Gems")
-    ImGui.Text("Mining level: " .. level("MINING") .. "   Crafting level: " .. level("CRAFTING"))
+    ImGui.Text(("Mining %d   Crafting %d   Fletching %d"):format(level("MINING"), level("CRAFTING"), level("FLETCHING")))
     ImGui.Text("Start inside Burthorpe mine. Mines " .. RockName:lower() .. "s,")
-    ImGui.Text("cuts what your Crafting level allows and drops")
-    ImGui.Text("every gem.")
+    ImGui.Text("cuts the gems, makes bolt tips and drops the")
+    ImGui.Text("gems that can't be cut or made into tips.")
     Gui.controls({}, State)
 end)
 
@@ -92,10 +99,10 @@ while API.Read_LoopyLoop() do
     end
 
     if Inventory:IsFull() then
-        local gem = Items.find(isCuttable)
+        local gem = Items.find(isCraftable)
         if gem ~= nil then
-            State.Status = "Cutting " .. gem.name:lower()
-            cut(gem)
+            State.Status = "Crafting " .. gem.name:lower()
+            craft(gem)
             goto continue
         end
 
