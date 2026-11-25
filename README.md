@@ -84,6 +84,8 @@ High heat, where each strike makes double progress, starts at two thirds of the 
 
 `require("lodestones")`, then `LODESTONES.<NAME>.Teleport()` or `LODESTONES.<NAME>.IsAtLocation()`.
 
+`lodestonetester.lua` checks them in game: pick a lodestone from the dropdown (it shows its interface id, its tile and whether you are there) and press **Teleport**. The status line says whether you arrived.
+
 ## Tests
 
 ```sh
