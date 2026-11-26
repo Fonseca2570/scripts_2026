@@ -39,6 +39,7 @@ function Gui.tile(label, tile)
     ImGui.PopItemWidth()
 
     if ImGui.Button("Set to my position##" .. label) then
+        print("[Gui] Set to my position pressed: " .. label)
         pendingTiles[#pendingTiles + 1] = tile
     end
 end
@@ -49,6 +50,7 @@ function Gui.update()
         return
     end
     local coord = API.PlayerCoord()
+    print(("[Gui] Setting %d tile(s) to %s,%s,%s"):format(#pendingTiles, tostring(coord.x), tostring(coord.y), tostring(coord.z)))
     for _, tile in ipairs(pendingTiles) do
         tile.x, tile.y, tile.z = coord.x, coord.y, coord.z
     end
