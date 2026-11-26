@@ -13,11 +13,12 @@ Shared helpers used by `fisher.lua`, `woodcutter.lua`, `cooker.lua`, `smelter.lu
 | `utils/stamina.lua` | `require("utils.stamina")` | `isLow(miningLevel)` (true from Mining 15 when the bar over the player is at or below `Share` of the highest reading seen, `Max`, where `Share` is picked at random between 5% and 50% after every refill; `Last` is the latest reading, for the GUI), `current()` |
 | `utils/objects.lua` | `require("utils.objects")` | `nearest(objects, matches)`, `nearestTo(objects, tile, maxDistance, matches)` (measured from a tile, not the player) |
 | `utils/player.lua` | `require("utils.player")` | `isBusy()` (animating, moving or processing), `waitUntilBusy()` (waits up to ~3s after a click so the next loop doesn't click again), `waitUntilIdle()` (waits up to ~10s for an action already under way to finish) |
+| `utils/banks.lua` | `require("utils.banks")` | `List` (surface bank tiles the scripts already use: Al Kharid, Draynor, Varrock west and east, Edgeville, Falador west and east, Burthorpe, Catherby, Seers' Village, Ardougne south, Oo'glog), `closest(tile, count)` (nearest first), `distance(a, b)` (straight line, ignores the plane) |
 | `utils/banking.lua` | `require("utils.banking")` | `TypeNames` (Auto, Bank booth, Bank chest, Banker), `find(typeName)`, `open(typeName)` (bank chests use "Use", booths and bankers "Bank"; returns `false` when no bank is nearby), `findItem(matches)` (first matching bank item), `close()` (presses Escape) |
 | `utils/production.lua` | `require("utils.production")` | `isMakeXOpen()`, `confirm()` (Space) |
 | `utils/gui.lua` | `require("utils.gui")` | `indexOf`, `combo(label, value, options)`, `tile(label, tile)` (its "Set to my position" button is applied by `update()`, which scripts call once per loop, because game reads fail inside the draw callback), `text`, `checkbox`, `controls(config, state)` (radius input only when `config.AreaRadius` is set), `show(title, draw)` |
 
-Every banking script has a **Bank type** dropdown. Auto uses the nearest bank and the right action for it.
+Every banking script except the miner has a **Bank type** dropdown. Auto uses the nearest bank and the right action for it. The miner always uses Auto.
 
 The modules are named `Banking` and `Items` so they don't shadow the client's `Bank` and `Inventory` globals.
 
@@ -27,7 +28,9 @@ Stand between a bank and a range or fire. Each trip deposits the inventory, with
 
 ## miner.lua
 
-Mines one rock type at a wiki location. Locations run from Lumbridge copper up to Varrock adamantite (iron is the Varrock south-west mine, banking at Varrock west), and "By level" moves to the best one your Mining level allows.
+Mines one rock type at a wiki location. Locations run from Lumbridge copper up to Varrock adamantite (iron is the Varrock south-west mine), and "By level" moves to the best one your Mining level allows.
+
+The **Bank** dropdown lists the 3 banks closest to the rock spot (from `utils/banks.lua`, with their distance in tiles) plus **Custom**, which shows x, y and z inputs for any other bank. The closest bank is picked by default, and the list follows the rock spot when you change location or edit the spot. The bank type is always Auto. Bar combinations keep their own banks, listed below.
 
 The Location dropdown also has **bar combinations**, which mine both ores of a bar at one mine. Each bar takes one of each ore (RS3 Wiki):
 

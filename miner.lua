@@ -1,5 +1,6 @@
 local API = require("api")
 local Banking = require("utils.banking")
+local Banks = require("utils.banks")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
@@ -11,6 +12,7 @@ API.SetDrawTrackedSkills(true)
 
 local Config = {
     Bank = { x = 3270, y = 3168, z = 0 },
+    CustomBank = { x = 3270, y = 3168, z = 0 },
     RockSpot = { x = 3229, y = 3148, z = 0 },
     AreaRadius = 20,
     BankType = "Auto",
@@ -42,59 +44,54 @@ local Rocks = {
 }
 
 local Modes = { "Banking", "Power mining" }
+local BankChoices = 3
+local CustomBankName = "Custom"
 local RockModes = { "Fixed rock", "By level" }
 
--- Rock and bank tiles from the RS3 Wiki, only mines that can be walked to.
--- Each location mines one rock type, so "By level" picks the highest location
--- the player's level allows. The Varrock tiles are the middle of the mine.
+-- Rock tiles from the RS3 Wiki, only mines that can be walked to. Each location
+-- mines one rock type, so "By level" picks the highest location the player's
+-- level allows. The Varrock tiles are the middle of the mine. Single locations
+-- bank at one of the closest banks; combinations bring their own.
 local Locations = {
     {
         Name = "Lumbridge SE copper",
         Rock = "Copper rock",
         RockSpot = { x = 3229, y = 3148, z = 0 },
-        Bank = { x = 3270, y = 3168, z = 0 },
     },
     {
         Name = "Lumbridge SE tin",
         Rock = "Tin rock",
         RockSpot = { x = 3225, y = 3146, z = 0 },
-        Bank = { x = 3270, y = 3168, z = 0 },
     },
     {
         Name = "Varrock SW iron",
         Rock = "Iron rock",
         RockSpot = { x = 3181, y = 3372, z = 0 },
-        Bank = { x = 3187, y = 3440, z = 0 },
     },
     {
         Name = "Falador west silver",
         Rock = "Silver rock",
         RockSpot = { x = 2907, y = 3346, z = 0 },
-        Bank = { x = 2946, y = 3367, z = 0 },
     },
     {
         Name = "Falador west coal",
         Rock = "Coal rock",
         RockSpot = { x = 2904, y = 3344, z = 0 },
-        Bank = { x = 2946, y = 3367, z = 0 },
     },
     {
         Name = "Varrock SE mithril",
         Rock = "Mithril rock",
         RockSpot = { x = 3287, y = 3363, z = 0 },
-        Bank = { x = 3254, y = 3421, z = 0 },
     },
     {
         Name = "Al Kharid gold",
         Rock = "Gold rock",
         RockSpot = { x = 3295, y = 3287, z = 0 },
-        Bank = { x = 3270, y = 3168, z = 0 },
     },
     {
         Name = "Varrock SE adamantite",
         Rock = "Adamantite rock",
         RockSpot = { x = 3287, y = 3363, z = 0 },
-        Bank = { x = 3254, y = 3421, z = 0 },
     },
     -- Combinations mine both ores of a bar at one mine. Every bar here takes one
     -- of each ore (RS3 Wiki), and adamant uses luminite, not coal, since 2019.
@@ -196,6 +193,10 @@ local State = {
     Location = 1,
     OreBoxFull = false,
     Combo = nil,
+    -- One of the closest banks to the rock spot, or BankChoices + 1 for custom.
+    BankChoice = 1,
+    BankOptions = {},
+    BanksFrom = nil,
 }
 
 local function miningLevel()
@@ -323,6 +324,26 @@ local function mine()
     Player.waitUntilBusy()
 end
 
+-- Custom keeps the same table as Config.Bank, so editing its tile moves the bank.
+local function applyBankChoice()
+    if State.BankChoice > #State.BankOptions then
+        Config.Bank = Config.CustomBank
+        return
+    end
+    Config.Bank = Movement.copyTile(State.BankOptions[State.BankChoice].Tile)
+end
+
+-- Runs again whenever the rock spot changes, including by hand in the GUI.
+local function chooseClosestBanks()
+    local from = ("%.0f,%.0f"):format(Config.RockSpot.x, Config.RockSpot.y)
+    if from == State.BanksFrom then
+        return
+    end
+    State.BanksFrom = from
+    State.BankOptions = Banks.closest(Config.RockSpot, BankChoices)
+    applyBankChoice()
+end
+
 local function applyLocation(index)
     local location = Locations[index]
     State.Location = index
@@ -337,6 +358,8 @@ local function applyLocation(index)
     end
     Config.Rock = location.Rock
     Config.RockSpot = Movement.copyTile(location.RockSpot)
+    State.BanksFrom = nil
+    chooseClosestBanks()
 end
 
 -- Combinations are picked by hand, so "By level" only considers single rocks.
@@ -416,9 +439,24 @@ local function drawBank()
     end
 
     ImGui.SeparatorText("Bank")
-    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
-    if not Config.ByLevel then
-        Gui.tile("Bank", Config.Bank)
+    if State.Combo ~= nil then
+        ImGui.Text("Each ore of the combination uses its own bank")
+        return
+    end
+
+    chooseClosestBanks()
+    local names = {}
+    for i, bank in ipairs(State.BankOptions) do
+        names[i] = ("%s (%.0f tiles)"):format(bank.Name, Banks.distance(bank.Tile, Config.RockSpot))
+    end
+    names[#names + 1] = CustomBankName
+    local changed, index = ImGui.Combo("Bank", State.BankChoice - 1, names)
+    if changed then
+        State.BankChoice = index + 1
+        applyBankChoice()
+    end
+    if State.BankChoice > #State.BankOptions then
+        Gui.tile("Custom bank", Config.CustomBank)
     end
 end
 

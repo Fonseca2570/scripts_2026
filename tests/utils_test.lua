@@ -109,6 +109,7 @@ Interact = {
 }
 
 local Banking = require("utils.banking")
+local Banks = require("utils.banks")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
@@ -473,6 +474,34 @@ for _, tt in ipairs({
     check(tt.name .. " (checks)", idleChecks, tt.expectedChecks)
 end
 busyAfter = nil
+
+-- Banks
+
+for _, tt in ipairs({
+    { name = "Varrock SW iron", tile = { x = 3181, y = 3372, z = 0 }, expected = "Varrock west,Varrock east,Edgeville" },
+    { name = "Lumbridge SE copper", tile = { x = 3229, y = 3148, z = 0 }, expected = "Al Kharid,Draynor,Varrock east" },
+    { name = "Falador west coal", tile = { x = 2904, y = 3344, z = 0 }, expected = "Falador west,Falador east,Catherby" },
+}) do
+    local names = {}
+    for i, bank in ipairs(Banks.closest(tt.tile, 3)) do
+        names[i] = bank.Name
+    end
+    check("closest banks to " .. tt.name, table.concat(names, ","), tt.expected)
+end
+
+for _, tt in ipairs({
+    { name = "closest returns no more banks than asked", count = 1, expected = 1 },
+    { name = "closest returns every bank when asked for more", count = 100, expected = #Banks.List },
+}) do
+    check(tt.name, #Banks.closest({ x = 3200, y = 3200, z = 0 }, tt.count), tt.expected)
+end
+
+for _, tt in ipairs({
+    { name = "distance ignores the plane", a = { x = 0, y = 0, z = 0 }, b = { x = 3, y = 4, z = 2 }, expected = 5 },
+    { name = "distance to itself is zero", a = { x = 5, y = 5, z = 0 }, b = { x = 5, y = 5, z = 0 }, expected = 0 },
+}) do
+    check(tt.name, Banks.distance(tt.a, tt.b), tt.expected)
+end
 
 -- Gui
 
