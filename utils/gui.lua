@@ -2,6 +2,11 @@ local API = require("api")
 
 local Gui = {}
 
+-- Game reads such as API.PlayerCoord don't work from the draw callback, so
+-- "Set to my position" only queues the tile and Gui.update fills it in from the
+-- script loop.
+local pendingTiles = {}
+
 function Gui.indexOf(list, value)
     for i, v in ipairs(list) do
         if v == value then
@@ -34,9 +39,20 @@ function Gui.tile(label, tile)
     ImGui.PopItemWidth()
 
     if ImGui.Button("Set to my position##" .. label) then
-        local coord = API.PlayerCoord()
+        pendingTiles[#pendingTiles + 1] = tile
+    end
+end
+
+-- Call once per script loop, before anything that reads the tiles.
+function Gui.update()
+    if #pendingTiles == 0 then
+        return
+    end
+    local coord = API.PlayerCoord()
+    for _, tile in ipairs(pendingTiles) do
         tile.x, tile.y, tile.z = coord.x, coord.y, coord.z
     end
+    pendingTiles = {}
 end
 
 function Gui.text(label, value)

@@ -303,6 +303,7 @@ end)
 API.Write_LoopyLoop(true)
 
 while API.Read_LoopyLoop() do
+    Gui.update()
 
     if not State.Running then
         API.RandomSleep2(200, 100, 100)

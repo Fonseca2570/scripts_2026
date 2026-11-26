@@ -3,7 +3,8 @@ local Gui = require("utils.gui")
 local LODESTONES = require("lodestones")
 
 -- Pick a lodestone and press Teleport to check its interface id and tile in
--- game. The teleport runs in the main loop, since it blocks until arrival.
+-- game. The teleport and the position check run in the main loop, since game
+-- reads don't work from the draw callback.
 local Names = {}
 for name in pairs(LODESTONES) do
     Names[#Names + 1] = name
@@ -14,6 +15,7 @@ local State = {
     Selected = Names[1],
     Pending = nil,
     Status = "Idle",
+    AtSelected = false,
 }
 
 Gui.show("Lodestone Tester", function()
@@ -22,7 +24,7 @@ Gui.show("Lodestone Tester", function()
 
     local lode = LODESTONES[State.Selected]
     ImGui.Text(("Interface id %d, tile %d,%d,%d"):format(lode.id, lode.loc.x, lode.loc.y, lode.loc.z))
-    ImGui.Text("At this lodestone: " .. (lode.IsAtLocation() and "yes" or "no"))
+    ImGui.Text("At this lodestone: " .. (State.AtSelected and "yes" or "no"))
 
     if ImGui.Button("Teleport", 120, 26) and State.Pending == nil then
         State.Pending = State.Selected
@@ -41,5 +43,6 @@ while API.Read_LoopyLoop() do
         State.Status = (arrived and "Arrived at " or "Failed: ") .. name
         State.Pending = nil
     end
+    State.AtSelected = LODESTONES[State.Selected].IsAtLocation()
     API.RandomSleep2(200, 100, 100)
 end
