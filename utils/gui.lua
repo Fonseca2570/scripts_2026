@@ -6,6 +6,9 @@ local Gui = {}
 -- "Set to my position" only queues the tile and Gui.update fills it in from the
 -- script loop.
 local pendingTiles = {}
+-- The input boxes keep showing their old value when the tile changes outside
+-- them, so each fill gives the tile's boxes a new id and they are redrawn.
+local tileVersions = setmetatable({}, { __mode = "k" })
 
 function Gui.indexOf(list, value)
     for i, v in ipairs(list) do
@@ -28,7 +31,8 @@ function Gui.tile(label, tile)
     ImGui.Text(label)
     ImGui.PushItemWidth(90)
     for _, axis in ipairs({ "x", "y", "z" }) do
-        local changed, value = ImGui.InputInt(axis .. "##" .. label, tile[axis], 0, 0)
+        local id = ("%s##%s%d"):format(axis, label, tileVersions[tile] or 0)
+        local changed, value = ImGui.InputInt(id, tile[axis], 0, 0)
         if changed then
             tile[axis] = value
         end
@@ -53,6 +57,7 @@ function Gui.update()
     print(("[Gui] Setting %d tile(s) to %s,%s,%s"):format(#pendingTiles, tostring(coord.x), tostring(coord.y), tostring(coord.z)))
     for _, tile in ipairs(pendingTiles) do
         tile.x, tile.y, tile.z = coord.x, coord.y, coord.z
+        tileVersions[tile] = (tileVersions[tile] or 0) + 1
     end
     pendingTiles = {}
 end
