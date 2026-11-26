@@ -8,6 +8,7 @@ local Objects = require("utils.objects")
 local Player = require("utils.player")
 local Slib = require("slib")
 local Stamina = require("utils.stamina")
+local Tally = require("utils.tally")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
@@ -197,6 +198,7 @@ local State = {
     BankChoice = 1,
     BankOptions = {},
     BanksFrom = nil,
+    Mined = Tally.new(),
 }
 
 local function miningLevel()
@@ -430,6 +432,11 @@ local function drawMode()
     end
     Config.UseOreBox = Gui.checkbox("Fill ore box", Config.UseOreBox)
     Config.UseRockertunities = Gui.checkbox("Use rockertunities", Config.UseRockertunities)
+    if State.Mined.Total > 0 then
+        ImGui.Text(("Mined: %d (%s)"):format(State.Mined.Total, Tally.text(State.Mined)))
+    else
+        ImGui.Text("Mined: 0")
+    end
     ImGui.Text(("Stamina: %.0f (max seen %.0f, refills at %.0f%%)"):format(Stamina.Last, Stamina.Max, Stamina.Share * 100))
 end
 
@@ -473,6 +480,7 @@ API.Write_LoopyLoop(true)
 
 while API.Read_LoopyLoop() do
     Gui.update()
+    Tally.update(State.Mined, isOre)
 
     if not State.Running then
         API.RandomSleep2(200, 100, 100)

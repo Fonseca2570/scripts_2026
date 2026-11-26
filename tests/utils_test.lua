@@ -93,13 +93,17 @@ FFPOINT = {
 
 local comboPick = nil
 local pressedButton = nil
+local inputLabels = {}
 ImGui = {
     Combo = function(_, current) return comboPick ~= nil, comboPick or current end,
     Text = function() end,
     PushItemWidth = function() end,
     PopItemWidth = function() end,
     SameLine = function() end,
-    InputInt = function(_, value) return false, value end,
+    InputInt = function(label, value)
+        inputLabels[#inputLabels + 1] = label
+        return false, value
+    end,
     Button = function(label) return label == pressedButton end,
 }
 
@@ -116,6 +120,7 @@ local Movement = require("utils.movement")
 local Objects = require("utils.objects")
 local Player = require("utils.player")
 local Stamina = require("utils.stamina")
+local Tally = require("utils.tally")
 
 local failures, total = 0, 0
 
@@ -475,6 +480,52 @@ for _, tt in ipairs({
 end
 busyAfter = nil
 
+-- Tally
+
+local function isOreOrCoal(item)
+    return item.name == "Coal" or item.name == "Iron ore"
+end
+
+local function items(...)
+    local list = {}
+    for i, name in ipairs({ ... }) do
+        list[i] = { id = i, name = name }
+    end
+    return list
+end
+
+for _, tt in ipairs({
+    {
+        name = "first update only notes what is there",
+        steps = { items("Coal", "Coal") },
+        expectedTotal = 0, expectedText = "",
+    },
+    {
+        name = "counts ores as they arrive",
+        steps = { items(), items("Coal"), items("Coal", "Coal", "Iron ore") },
+        expectedTotal = 3, expectedText = "2 Coal, 1 Iron ore",
+    },
+    {
+        name = "ore leaving the inventory isn't counted again",
+        steps = { items(), items("Coal", "Coal"), items(), items("Coal") },
+        expectedTotal = 3, expectedText = "3 Coal",
+    },
+    {
+        name = "other items are ignored",
+        steps = { items(), items("Uncut opal", "Bronze ore box", "Coal") },
+        expectedTotal = 1, expectedText = "1 Coal",
+    },
+}) do
+    local tally = Tally.new()
+    for _, step in ipairs(tt.steps) do
+        inventory = step
+        Tally.update(tally, isOreOrCoal)
+    end
+    check(tt.name .. " (total)", tally.Total, tt.expectedTotal)
+    check(tt.name .. " (text)", Tally.text(tally), tt.expectedText)
+end
+inventory = {}
+
 -- Banks
 
 for _, tt in ipairs({
@@ -534,6 +585,22 @@ for _, tt in ipairs({
     check(tt.name, table.concat({ tile.x, tile.y, tile.z }, ","), tt.expected)
 end
 pressedButton, playerCoord = nil, { x = 1, y = 2, z = 3 }
+
+for _, tt in ipairs({
+    { name = "tile boxes get a new id after a fill", pressed = "Set to my position##Bank", expectedChanged = true },
+    { name = "tile boxes keep their id without a fill", pressed = nil, expectedChanged = false },
+}) do
+    local tile = { x = 1, y = 2, z = 3 }
+    pressedButton, inputLabels = tt.pressed, {}
+    Gui.tile("Bank", tile)
+    local before = inputLabels[1]
+    Gui.update()
+    pressedButton, inputLabels = nil, {}
+    Gui.tile("Bank", tile)
+    check(tt.name, inputLabels[1] ~= before, tt.expectedChanged)
+    check(tt.name .. " (shown name)", inputLabels[1]:match("^[^#]*"), "x")
+end
+pressedButton = nil
 
 print(("%d/%d checks passed"):format(total - failures, total))
 os.exit(failures == 0 and 0 or 1)
