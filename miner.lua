@@ -6,6 +6,7 @@ local Movement = require("utils.movement")
 local Objects = require("utils.objects")
 local Player = require("utils.player")
 local Slib = require("slib")
+local Stamina = require("utils.stamina")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
@@ -167,16 +168,11 @@ local Locations = {
     },
 }
 
--- Rockertunity highlight ids come from community mining scripts. Clicking a
--- rock refills stamina, so click again when it runs low. Maximum stamina grows
--- with Mining level, so low is a share of the highest reading seen, not a
--- fixed number.
+-- Rockertunity highlight ids come from community mining scripts.
 local RockertunityIds = { 7164, 7165 }
 local HighlightType = 4
 local ObjectType = 0
 local RockertunityRange = 2
-local LowStaminaShare = 0.3
-local StaminaLevel = 15
 local MineAction = "Mine"
 
 local RockNames = {}
@@ -199,7 +195,6 @@ local State = {
     Status = "Paused",
     Location = 1,
     OreBoxFull = false,
-    MaxStamina = 0,
     Combo = nil,
 }
 
@@ -328,20 +323,6 @@ local function mine()
     Player.waitUntilBusy()
 end
 
--- Stamina starts at Mining level 15. Below that, or when the bar is not shown,
--- the progress bar reads 0 or less and must not trigger a click every loop.
-local function isStaminaLow()
-    if miningLevel() < StaminaLevel then
-        return false
-    end
-    local stamina = API.LocalPlayer_HoverProgress()
-    if stamina <= 0 then
-        return false
-    end
-    State.MaxStamina = math.max(State.MaxStamina, stamina)
-    return stamina <= State.MaxStamina * LowStaminaShare
-end
-
 local function applyLocation(index)
     local location = Locations[index]
     State.Location = index
@@ -426,7 +407,7 @@ local function drawMode()
     end
     Config.UseOreBox = Gui.checkbox("Fill ore box", Config.UseOreBox)
     Config.UseRockertunities = Gui.checkbox("Use rockertunities", Config.UseRockertunities)
-    ImGui.Text(("Stamina: %.0f (max seen %.0f)"):format(API.LocalPlayer_HoverProgress(), State.MaxStamina))
+    ImGui.Text(("Stamina: %.0f (max seen %.0f, refills at %.0f%%)"):format(Stamina.Last, Stamina.Max, Stamina.Share * 100))
 end
 
 local function drawBank()
@@ -453,6 +434,7 @@ end)
 API.Write_LoopyLoop(true)
 
 while API.Read_LoopyLoop() do
+    Gui.update()
 
     if not State.Running then
         API.RandomSleep2(200, 100, 100)
@@ -498,7 +480,7 @@ while API.Read_LoopyLoop() do
     if API.CheckAnim(10) then
         if mineRockertunity() then
             State.Status = "Mining rockertunity"
-        elseif isStaminaLow() then
+        elseif Stamina.isLow(miningLevel()) then
             State.Status = "Refreshing stamina"
             Interact:Object(Config.Rock, MineAction)
             API.RandomSleep2(1200, 300, 300)

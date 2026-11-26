@@ -16,6 +16,7 @@ local busyAfter = nil
 local playerNear = true
 local playerCoord = { x = 1, y = 2, z = 3 }
 local idleChecks = 0
+local hoverProgress = 0
 
 local fakeApi = {
     RandomSleep2 = function() end,
@@ -39,6 +40,7 @@ local fakeApi = {
         return (busyAfter ~= nil and idleChecks >= busyAfter) and 1 or 0
     end,
     ReadPlayerMovin2 = function() return false end,
+    LocalPlayer_HoverProgress = function() return hoverProgress end,
     isProcessing = function() return false end,
     OFF_ACT_GeneralInterface_route = 0,
     DoAction_Inventory1 = function(id)
@@ -90,8 +92,15 @@ FFPOINT = {
 }
 
 local comboPick = nil
+local pressedButton = nil
 ImGui = {
     Combo = function(_, current) return comboPick ~= nil, comboPick or current end,
+    Text = function() end,
+    PushItemWidth = function() end,
+    PopItemWidth = function() end,
+    SameLine = function() end,
+    InputInt = function(_, value) return false, value end,
+    Button = function(label) return label == pressedButton end,
 }
 
 Interact = {
@@ -105,6 +114,7 @@ local Items = require("utils.items")
 local Movement = require("utils.movement")
 local Objects = require("utils.objects")
 local Player = require("utils.player")
+local Stamina = require("utils.stamina")
 
 local failures, total = 0, 0
 
@@ -198,6 +208,45 @@ for _, tt in ipairs({
     check(tt.name .. " (call)", table.concat(calls[#calls], ","), tt.expectedCall)
 end
 playerCoord, playerNear = { x = 1, y = 2, z = 3 }, true
+
+-- Stamina
+
+for _, tt in ipairs({
+    { name = "isLow below level 15", level = 14, readings = { 100, 10 }, expected = false },
+    { name = "isLow with no bar shown", level = 50, readings = { 0 }, expected = false },
+    { name = "isLow with full stamina", level = 50, readings = { 100 }, expected = false },
+    { name = "isLow above the share of the max seen", level = 50, readings = { 100, 31 }, expected = false },
+    { name = "isLow at the share of the max seen", level = 50, readings = { 100, 30 }, expected = true },
+    { name = "isLow keeps the highest reading", level = 50, readings = { 100, 50, 25 }, expected = true },
+}) do
+    Stamina.Max = 0
+    Stamina.Share = 0.3
+    local got
+    for _, reading in ipairs(tt.readings) do
+        hoverProgress = reading
+        got = Stamina.isLow(tt.level)
+    end
+    check(tt.name, got, tt.expected)
+end
+
+for _, tt in ipairs({
+    { name = "isLow picks a new share after a refill", readings = { 100, 30 }, expectedChanged = true },
+    { name = "isLow keeps the share until a refill", readings = { 100, 31 }, expectedChanged = false },
+}) do
+    for _ = 1, 50 do
+        Stamina.Max = 0
+        Stamina.Share = 0.3
+        for _, reading in ipairs(tt.readings) do
+            hoverProgress = reading
+            Stamina.isLow(50)
+        end
+        check(tt.name .. " (between 5% and 50%)", Stamina.Share >= 0.05 and Stamina.Share <= 0.5, true)
+        if not tt.expectedChanged then
+            check(tt.name, Stamina.Share, 0.3)
+        end
+    end
+end
+hoverProgress = 0
 
 -- Items
 
@@ -441,6 +490,21 @@ for _, tt in ipairs({
     comboPick = tt.pick
     check(tt.name, Gui.combo("Bank type", tt.value, { "Auto", "Bank booth", "Bank chest", "Banker" }), tt.expected)
 end
+
+for _, tt in ipairs({
+    { name = "tile button sets the tile on update", pressed = "Set to my position##Bank", expected = "3093,3244,0" },
+    { name = "tile without a press is unchanged", pressed = nil, expected = "1,2,3" },
+}) do
+    reset()
+    playerCoord = { x = 3093, y = 3244, z = 0 }
+    pressedButton = tt.pressed
+    local tile = { x = 1, y = 2, z = 3 }
+    Gui.tile("Bank", tile)
+    check(tt.name .. " (not set while drawing)", tile.x, 1)
+    Gui.update()
+    check(tt.name, table.concat({ tile.x, tile.y, tile.z }, ","), tt.expected)
+end
+pressedButton, playerCoord = nil, { x = 1, y = 2, z = 3 }
 
 print(("%d/%d checks passed"):format(total - failures, total))
 os.exit(failures == 0 and 0 or 1)

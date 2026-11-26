@@ -3,6 +3,7 @@ local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Player = require("utils.player")
 local Production = require("utils.production")
+local Stamina = require("utils.stamina")
 API.SetDrawTrackedSkills(true)
 
 -- Burthorpe mine only has common gem rocks (RS3 Wiki). Start the script
@@ -81,6 +82,7 @@ Gui.show("Gem Miner", function()
     ImGui.Text("Start inside Burthorpe mine. Mines " .. RockName:lower() .. "s,")
     ImGui.Text("cuts the gems, makes bolt tips and drops the")
     ImGui.Text("gems that can't be cut or made into tips.")
+    ImGui.Text(("Stamina: %.0f (max seen %.0f, refills at %.0f%%)"):format(Stamina.Last, Stamina.Max, Stamina.Share * 100))
     Gui.controls({}, State)
 end)
 
@@ -93,8 +95,17 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.ReadPlayerMovin2() or API.isProcessing() or API.CheckAnim(10) then
+    if API.ReadPlayerMovin2() or API.isProcessing() then
         API.RandomSleep2(50, 100, 100)
+        goto continue
+    end
+
+    if API.CheckAnim(10) then
+        if Stamina.isLow(level("MINING")) then
+            State.Status = "Refreshing stamina"
+            mine()
+            API.RandomSleep2(1200, 300, 300)
+        end
         goto continue
     end
 
