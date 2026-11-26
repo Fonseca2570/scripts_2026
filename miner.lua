@@ -4,7 +4,6 @@ local Banks = require("utils.banks")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
-local Objects = require("utils.objects")
 local Player = require("utils.player")
 local Slib = require("slib")
 local Stamina = require("utils.stamina")
@@ -169,8 +168,7 @@ local Locations = {
 -- Rockertunity highlight ids come from community mining scripts.
 local RockertunityIds = { 7164, 7165 }
 local HighlightType = 4
-local ObjectType = 0
-local RockertunityRange = 2
+local RockertunityRange = 1
 local MineAction = "Mine"
 
 local RockNames = {}
@@ -294,8 +292,8 @@ local function chooseComboRock()
 end
 
 -- A rockertunity highlights one rock near the one being mined. Clicking that
--- rock gives one much stronger hit. The highlight is a nameless object of its
--- own, so the click goes to the rock under it, on the rock's own tile.
+-- rock gives one much stronger hit. The highlight can't be clicked, so the
+-- click goes to the rock being mined at the highlight's tile.
 local function mineRockertunity()
     if not Config.UseRockertunities then
         return false
@@ -306,17 +304,11 @@ local function mineRockertunity()
         return false
     end
 
-    local rocks = API.ReadAllObjectsArray({ ObjectType }, { -1 }, {}) or {}
-    local rock = Objects.nearestTo(rocks, highlight.Tile_XYZ, RockertunityRange, function(object)
-        return object.Name == Config.Rock
-    end)
-    if rock == nil then
-        Slib:Warn(("[Miner] No %s under the rockertunity at %.0f, %.0f"):format(
+    if not Interact:Object(Config.Rock, MineAction, highlight.Tile_XYZ, RockertunityRange) then
+        Slib:Warn(("[Miner] No %s at the rockertunity at %.0f, %.0f"):format(
             Config.Rock, highlight.Tile_XYZ.x, highlight.Tile_XYZ.y))
         return false
     end
-
-    Interact:Object(rock.Name, MineAction, rock.Tile_XYZ, 1)
     API.RandomSleep2(1200, 300, 300)
     return true
 end
