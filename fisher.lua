@@ -1,16 +1,15 @@
 local API = require("api")
 local Slib = require("slib")
 local Banking = require("utils.banking")
+local BankPicker = require("utils.bankpicker")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
-    Bank = { x = 2889, y = 3533, z = 0 },
     FishingSpot = { x = 2899, y = 3471, z = 0 },
     AreaRadius = 20,
-    BankType = "Auto",
     FishingNPC = "Fishing spot",
     FishingAction = "Cage",
     PowerFish = false,
@@ -28,43 +27,38 @@ local RequiredItems = {
     Lure = "Feather",
 }
 
--- Fishing spot and bank tiles from the RS3 Wiki, except Burthorpe. Fishing spot
--- tiles are in the water, so MoveTo walks to the shore and stops there.
--- Barbarian Village banks at Edgeville.
+-- Fishing spot tiles from the RS3 Wiki, except Burthorpe. Fishing spot tiles
+-- are in the water, so MoveTo walks to the shore and stops there. The bank is
+-- picked from the closest banks to the spot.
 local Locations = {
     {
         Name = "Burthorpe",
         FishingSpot = { x = 2899, y = 3471, z = 0 },
         FishingAction = "Cage",
-        Bank = { x = 2889, y = 3533, z = 0 },
         PowerFish = false,
     },
     {
         Name = "Catherby",
         FishingSpot = { x = 2844, y = 3429, z = 0 },
         FishingAction = "Cage",
-        Bank = { x = 2795, y = 3440, z = 0 },
         PowerFish = false,
     },
     {
         Name = "Fishing Guild",
         FishingSpot = { x = 2605, y = 3421, z = 0 },
         FishingAction = "Cage",
-        Bank = { x = 2585, y = 3422, z = 0 },
         PowerFish = false,
     },
     {
         Name = "Draynor Village",
         FishingSpot = { x = 3086, y = 3227, z = 0 },
         FishingAction = "Net",
-        Bank = { x = 3093, y = 3244, z = 0 },
         PowerFish = false,
     },
     {
         Name = "Barbarian Village",
         FishingSpot = { x = 3104, y = 3424, z = 0 },
         FishingAction = "Lure",
-        Bank = { x = 3095, y = 3494, z = 0 },
         PowerFish = true,
     },
 }
@@ -78,6 +72,7 @@ local State = {
     Running = false,
     Status = "Paused",
     Location = 0,
+    Bank = BankPicker.new({ x = 2889, y = 3533, z = 0 }),
 }
 
 local function isRawFish(item)
@@ -112,9 +107,6 @@ local function applyLocation(location)
     Config.FishingSpot = Movement.copyTile(location.FishingSpot)
     setFishingAction(location.FishingAction)
     Config.PowerFish = location.PowerFish
-    if location.Bank then
-        Config.Bank = Movement.copyTile(location.Bank)
-    end
 end
 
 local function drawLocation()
@@ -155,8 +147,7 @@ local function drawBank()
     end
 
     ImGui.SeparatorText("Bank")
-    Gui.tile("Bank", Config.Bank)
-    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
+    BankPicker.draw(State.Bank, Config.FishingSpot)
 end
 
 Gui.show("Fisher", function()
@@ -177,7 +168,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.CheckAnim(10) or API.isProcessing() or API.ReadPlayerMovin2() then
+    if API.CheckAnim(50) or API.isProcessing() or API.ReadPlayerMovin2() then
         API.RandomSleep2(50, 100, 100)
         goto continue
     end
@@ -190,9 +181,10 @@ while API.Read_LoopyLoop() do
             end
         end
 
-        if not Movement.isNear(Config.Bank, Config.AreaRadius) then
+        local bank = BankPicker.bank(State.Bank, Config.FishingSpot)
+        if not Movement.isNear(bank, Config.AreaRadius) then
             State.Status = "Walking to bank"
-            Movement.moveTo(Config.Bank)
+            Movement.moveTo(bank)
             goto continue
         end
 
@@ -202,7 +194,7 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        if not Banking.open(Config.BankType) then
+        if not Banking.open("Auto") then
             State.Status = "No bank found"
         end
         goto continue

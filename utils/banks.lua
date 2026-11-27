@@ -1,5 +1,5 @@
--- Surface bank tiles the scripts already walk to. Banks that need a quest,
--- unlock or skill level to use are left out.
+-- Surface bank tiles the scripts already walk to. The Fishing Guild bank needs
+-- 68 Fishing to enter the guild.
 local Banks = {
     List = {
         { Name = "Al Kharid", Tile = { x = 3270, y = 3168, z = 0 } },
@@ -13,6 +13,8 @@ local Banks = {
         { Name = "Catherby", Tile = { x = 2795, y = 3440, z = 0 } },
         { Name = "Seers' Village", Tile = { x = 2725, y = 3492, z = 0 } },
         { Name = "Ardougne south", Tile = { x = 2653, y = 3284, z = 0 } },
+        { Name = "Fishing Guild", Tile = { x = 2585, y = 3422, z = 0 } },
+        { Name = "Sorcerer's Tower", Tile = { x = 2674, y = 3405, z = 0 } },
         { Name = "Oo'glog", Tile = { x = 2412, y = 2827, z = 0 } },
     },
 }

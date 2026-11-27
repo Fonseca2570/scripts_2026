@@ -114,6 +114,7 @@ Interact = {
 
 local Banking = require("utils.banking")
 local Banks = require("utils.banks")
+local BankPicker = require("utils.bankpicker")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
@@ -552,6 +553,66 @@ for _, tt in ipairs({
     { name = "distance to itself is zero", a = { x = 5, y = 5, z = 0 }, b = { x = 5, y = 5, z = 0 }, expected = 0 },
 }) do
     check(tt.name, Banks.distance(tt.a, tt.b), tt.expected)
+end
+
+-- The closest bank to each preset spot is the bank that preset used before.
+for _, tt in ipairs({
+    { name = "Burthorpe fishing", spot = { x = 2899, y = 3471, z = 0 }, expected = "Burthorpe" },
+    { name = "Catherby fishing", spot = { x = 2844, y = 3429, z = 0 }, expected = "Catherby" },
+    { name = "Fishing Guild fishing", spot = { x = 2605, y = 3421, z = 0 }, expected = "Fishing Guild" },
+    { name = "Draynor fishing", spot = { x = 3086, y = 3227, z = 0 }, expected = "Draynor" },
+    { name = "Barbarian Village fishing", spot = { x = 3104, y = 3424, z = 0 }, expected = "Edgeville" },
+    { name = "Draynor oaks", spot = { x = 3106, y = 3247, z = 0 }, expected = "Draynor" },
+    { name = "Draynor willows", spot = { x = 3087, y = 3231, z = 0 }, expected = "Draynor" },
+    { name = "Seers' Village maples", spot = { x = 2729, y = 3481, z = 0 }, expected = "Seers' Village" },
+    { name = "Oo'glog eucalyptus", spot = { x = 2408, y = 2818, z = 0 }, expected = "Oo'glog" },
+    { name = "Edgeville yews", spot = { x = 3085, y = 3480, z = 0 }, expected = "Edgeville" },
+    { name = "Sorcerer's Tower magics", spot = { x = 2698, y = 3398, z = 0 }, expected = "Sorcerer's Tower" },
+    { name = "Lumbridge SE copper", spot = { x = 3229, y = 3148, z = 0 }, expected = "Al Kharid" },
+    { name = "Falador west silver", spot = { x = 2907, y = 3346, z = 0 }, expected = "Falador west" },
+    { name = "Varrock SE mithril", spot = { x = 3287, y = 3363, z = 0 }, expected = "Varrock east" },
+    { name = "Al Kharid gold", spot = { x = 3295, y = 3287, z = 0 }, expected = "Al Kharid" },
+}) do
+    check("closest bank for " .. tt.name, Banks.closest(tt.spot, 1)[1].Name, tt.expected)
+end
+
+-- BankPicker
+
+local function tileText(tile)
+    return table.concat({ tile.x, tile.y, tile.z }, ",")
+end
+
+for _, tt in ipairs({
+    { name = "picker defaults to the closest bank", pick = nil, expected = "3187,3440,0" },
+    { name = "picker uses the picked bank", pick = 1, expected = "3254,3421,0" },
+    { name = "picker uses custom after the 3 closest", pick = 3, expected = "1,2,3" },
+}) do
+    local picker = BankPicker.new({ x = 1, y = 2, z = 3 })
+    local spot = { x = 3181, y = 3372, z = 0 }
+    comboPick = tt.pick
+    BankPicker.draw(picker, spot)
+    comboPick = nil
+    check(tt.name, tileText(BankPicker.bank(picker, spot)), tt.expected)
+end
+
+for _, tt in ipairs({
+    { name = "picker follows the spot", spot = { x = 3229, y = 3148, z = 0 }, expected = "3270,3168,0" },
+    { name = "picker keeps custom when the spot moves", custom = true, spot = { x = 3229, y = 3148, z = 0 }, expected = "1,2,3" },
+}) do
+    local picker = BankPicker.new({ x = 1, y = 2, z = 3 })
+    if tt.custom then
+        picker.Choice = 4
+    end
+    BankPicker.bank(picker, { x = 3181, y = 3372, z = 0 })
+    check(tt.name, tileText(BankPicker.bank(picker, tt.spot)), tt.expected)
+end
+
+for _, tt in ipairs({
+    { name = "custom bank is the same table the GUI edits", expected = true },
+}) do
+    local picker = BankPicker.new({ x = 1, y = 2, z = 3 })
+    picker.Choice = 4
+    check(tt.name, BankPicker.bank(picker, { x = 0, y = 0, z = 0 }) == picker.Custom, tt.expected)
 end
 
 -- Gui

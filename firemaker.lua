@@ -7,7 +7,6 @@ local Player = require("utils.player")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
-    BankType = "Auto",
     Permanent = false,
     CollectSpirits = true,
 }
@@ -181,14 +180,8 @@ local function drawFire()
     ImGui.Text("be lit right next to a bank.")
 end
 
-local function drawBank()
-    ImGui.SeparatorText("Bank")
-    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
-end
-
 Gui.show("Firemaker", function()
     drawFire()
-    drawBank()
     Gui.controls(Config, State)
 end)
 
@@ -212,7 +205,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.CheckAnim(10) or API.isProcessing() then
+    if API.CheckAnim(50) or API.isProcessing() then
         API.RandomSleep2(50, 100, 100)
         goto continue
     end
@@ -237,7 +230,7 @@ while API.Read_LoopyLoop() do
     end
 
     State.Status = "Opening bank"
-    if not Banking.open(Config.BankType) then
+    if not Banking.open("Auto") then
         State.Status = "No bank found"
     end
 

@@ -14,12 +14,13 @@ Shared helpers used by `fisher.lua`, `woodcutter.lua`, `cooker.lua`, `smelter.lu
 | `utils/tally.lua` | `require("utils.tally")` | `new()`, `update(tally, matches)` (call once per loop; counts matching items each time the inventory gains them, by name, so items leaving for a box, the bank or the floor aren't counted twice; the first update only notes what is already there), `text(tally)` ("50 Coal, 20 Iron ore"); `Total` is the sum |
 | `utils/objects.lua` | `require("utils.objects")` | `nearest(objects, matches)`, `nearestTo(objects, tile, maxDistance, matches)` (measured from a tile, not the player) |
 | `utils/player.lua` | `require("utils.player")` | `isBusy()` (animating, moving or processing), `waitUntilBusy()` (waits up to ~3s after a click so the next loop doesn't click again), `waitUntilIdle()` (waits up to ~10s for an action already under way to finish) |
-| `utils/banks.lua` | `require("utils.banks")` | `List` (surface bank tiles the scripts already use: Al Kharid, Draynor, Varrock west and east, Edgeville, Falador west and east, Burthorpe, Catherby, Seers' Village, Ardougne south, Oo'glog), `closest(tile, count)` (nearest first), `distance(a, b)` (straight line, ignores the plane) |
+| `utils/banks.lua` | `require("utils.banks")` | `List` (surface bank tiles the scripts already use: Al Kharid, Draynor, Varrock west and east, Edgeville, Falador west and east, Burthorpe, Catherby, Seers' Village, Ardougne south, Fishing Guild (68 Fishing), Sorcerer's Tower, Oo'glog), `closest(tile, count)` (nearest first), `distance(a, b)` (straight line, ignores the plane) |
+| `utils/bankpicker.lua` | `require("utils.bankpicker")` | `new(customTile)`, `draw(picker, spot)` (the Bank dropdown: the 3 banks closest to the spot with their distance in tiles, plus Custom with x/y/z inputs), `bank(picker, spot)` (the tile to bank at; the options follow the spot, so a location change or a hand edit moves them, and Custom stays picked) |
 | `utils/banking.lua` | `require("utils.banking")` | `TypeNames` (Auto, Bank booth, Bank chest, Banker), `find(typeName)`, `open(typeName)` (bank chests use "Use", booths and bankers "Bank"; returns `false` when no bank is nearby), `findItem(matches)` (first matching bank item), `close()` (presses Escape) |
 | `utils/production.lua` | `require("utils.production")` | `isMakeXOpen()`, `confirm()` (Space) |
 | `utils/gui.lua` | `require("utils.gui")` | `indexOf`, `combo(label, value, options)`, `tile(label, tile)` (its "Set to my position" button is applied by `update()`, which scripts call once per loop, because game reads fail inside the draw callback; each fill gives the x/y/z boxes a new ImGui id so they show the new value), `text`, `checkbox`, `controls(config, state)` (radius input only when `config.AreaRadius` is set), `show(title, draw)` |
 
-Every banking script except the miner has a **Bank type** dropdown. Auto uses the nearest bank and the right action for it. The miner always uses Auto.
+Banking always uses Auto, the nearest bank and the right action for it; there is no Bank type dropdown. The miner, fisher and woodcutter walk to a bank, so they have a **Bank** dropdown (`utils/bankpicker.lua`): the 3 banks closest to the rock, fishing or tree spot, with their distance in tiles, plus **Custom**, which shows x, y and z inputs for any other bank. The closest bank is picked by default, which is the bank each preset location used before, and the list follows the spot when you change location or edit it. The cooker, fletcher and firemaker are started next to a bank, so they have no bank setting.
 
 The modules are named `Banking` and `Items` so they don't shadow the client's `Bank` and `Inventory` globals.
 
@@ -31,7 +32,7 @@ Stand between a bank and a range or fire. Each trip deposits the inventory, with
 
 Mines one rock type at a wiki location. Locations run from Lumbridge copper up to Varrock adamantite (iron is the Varrock south-west mine), and "By level" moves to the best one your Mining level allows.
 
-The **Bank** dropdown lists the 3 banks closest to the rock spot (from `utils/banks.lua`, with their distance in tiles) plus **Custom**, which shows x, y and z inputs for any other bank. The closest bank is picked by default, and the list follows the rock spot when you change location or edit the spot. The bank type is always Auto. Bar combinations keep their own banks, listed below.
+It banks at the bank picked in the **Bank** dropdown (see above). Bar combinations keep their own banks, listed below.
 
 The Location dropdown also has **bar combinations**, which mine both ores of a bar at one mine. Each bar takes one of each ore (RS3 Wiki):
 
@@ -65,6 +66,21 @@ Stand near a bank and pick a **Product**:
 
 - **Shafts:** each trip withdraws the best logs your Fletching level allows, uses "Craft" on them and presses Space in the Make-X window. It stops once no logs are left. Make-X remembers the last product picked, so if a bow or crossbow stock comes out, the script stops and asks you to pick Shaft once by hand.
 - **Headless arrows:** each trip withdraws all shafts and feathers, uses a feather on the shafts and presses Space in the Make-X window. It stops once the bank runs out of either.
+- **Arrows:** each trip withdraws all headless shafts (renamed from "Headless arrow" in July 2026) and the best arrowheads your Fletching level allows that the bank has, uses the arrowheads on the shafts (15 arrows per action) and confirms Make-X if it opens. It stops once the bank runs out of shafts or usable arrowheads.
+- **Bolts:** each trip withdraws all feathers and the best unfinished bolts your level allows, uses "Feather" on the bolts (10 per action) and confirms Make-X if it opens. It stops once the bank runs out of feathers or usable unfinished bolts.
+
+Levels from the RS3 Wiki after the July 2026 rebalance:
+
+| Arrowheads | Level | Unfinished bolts | Level |
+| --- | --- | --- | --- |
+| Bronze | 1 | Bronze | 3 |
+| Iron | 10 | Iron | 13 |
+| Steel | 20 | Steel | 23 |
+| Mithril | 30 | Mithril | 33 |
+| Adamant | 40 | Adamant | 43 |
+| Rune | 50 | Rune | 53 |
+| Broad | 52 | | |
+| Dragon | 60 | | |
 
 ## firemaker.lua
 

@@ -1,6 +1,6 @@
 local API = require("api")
 local Banking = require("utils.banking")
-local Banks = require("utils.banks")
+local BankPicker = require("utils.bankpicker")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
@@ -11,11 +11,10 @@ local Tally = require("utils.tally")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
+    -- Only combinations set the bank; single locations use the Bank dropdown.
     Bank = { x = 3270, y = 3168, z = 0 },
-    CustomBank = { x = 3270, y = 3168, z = 0 },
     RockSpot = { x = 3229, y = 3148, z = 0 },
     AreaRadius = 20,
-    BankType = "Auto",
     Rock = "Copper rock",
     PowerMine = false,
     ByLevel = false,
@@ -44,8 +43,6 @@ local Rocks = {
 }
 
 local Modes = { "Banking", "Power mining" }
-local BankChoices = 3
-local CustomBankName = "Custom"
 local RockModes = { "Fixed rock", "By level" }
 
 -- Rock tiles from the RS3 Wiki, only mines that can be walked to. Each location
@@ -192,10 +189,7 @@ local State = {
     Location = 1,
     OreBoxFull = false,
     Combo = nil,
-    -- One of the closest banks to the rock spot, or BankChoices + 1 for custom.
-    BankChoice = 1,
-    BankOptions = {},
-    BanksFrom = nil,
+    Bank = BankPicker.new({ x = 3270, y = 3168, z = 0 }),
     Mined = Tally.new(),
 }
 
@@ -318,24 +312,11 @@ local function mine()
     Player.waitUntilBusy()
 end
 
--- Custom keeps the same table as Config.Bank, so editing its tile moves the bank.
-local function applyBankChoice()
-    if State.BankChoice > #State.BankOptions then
-        Config.Bank = Config.CustomBank
-        return
+local function bankTile()
+    if State.Combo ~= nil then
+        return Config.Bank
     end
-    Config.Bank = Movement.copyTile(State.BankOptions[State.BankChoice].Tile)
-end
-
--- Runs again whenever the rock spot changes, including by hand in the GUI.
-local function chooseClosestBanks()
-    local from = ("%.0f,%.0f"):format(Config.RockSpot.x, Config.RockSpot.y)
-    if from == State.BanksFrom then
-        return
-    end
-    State.BanksFrom = from
-    State.BankOptions = Banks.closest(Config.RockSpot, BankChoices)
-    applyBankChoice()
+    return BankPicker.bank(State.Bank, Config.RockSpot)
 end
 
 local function applyLocation(index)
@@ -352,8 +333,6 @@ local function applyLocation(index)
     end
     Config.Rock = location.Rock
     Config.RockSpot = Movement.copyTile(location.RockSpot)
-    State.BanksFrom = nil
-    chooseClosestBanks()
 end
 
 -- Combinations are picked by hand, so "By level" only considers single rocks.
@@ -443,20 +422,7 @@ local function drawBank()
         return
     end
 
-    chooseClosestBanks()
-    local names = {}
-    for i, bank in ipairs(State.BankOptions) do
-        names[i] = ("%s (%.0f tiles)"):format(bank.Name, Banks.distance(bank.Tile, Config.RockSpot))
-    end
-    names[#names + 1] = CustomBankName
-    local changed, index = ImGui.Combo("Bank", State.BankChoice - 1, names)
-    if changed then
-        State.BankChoice = index + 1
-        applyBankChoice()
-    end
-    if State.BankChoice > #State.BankOptions then
-        Gui.tile("Custom bank", Config.CustomBank)
-    end
+    BankPicker.draw(State.Bank, Config.RockSpot)
 end
 
 applyLocation(1)
@@ -497,7 +463,7 @@ while API.Read_LoopyLoop() do
             end
         end
 
-        if not Movement.goTo(Config.Bank, Config.AreaRadius, Config.Entrance) then
+        if not Movement.goTo(bankTile(), Config.AreaRadius, Config.Entrance) then
             State.Status = "Walking to bank"
             goto continue
         end
@@ -509,13 +475,13 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        if not Banking.open(Config.BankType) then
+        if not Banking.open("Auto") then
             State.Status = "No bank found"
         end
         goto continue
     end
 
-    if API.CheckAnim(10) then
+    if API.CheckAnim(50) then
         if mineRockertunity() then
             State.Status = "Mining rockertunity"
         elseif Stamina.isLow(miningLevel()) then

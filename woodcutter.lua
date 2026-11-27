@@ -1,15 +1,14 @@
 local API = require("api")
 local Banking = require("utils.banking")
+local BankPicker = require("utils.bankpicker")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
-    Bank = { x = 3093, y = 3244, z = 0 },
     TreeSpot = { x = 3087, y = 3231, z = 0 },
     AreaRadius = 20,
-    BankType = "Auto",
     Tree = "Willow",
     PowerChop = false,
     ByLevel = false,
@@ -36,52 +35,45 @@ local Trees = {
 local Modes = { "Banking", "Power chopping" }
 local TreeModes = { "Fixed tree", "By level" }
 
--- Tree and bank tiles from the RS3 Wiki. Each location has one tree type, so
--- "By level" picks the highest location the player's level allows. The Wiki has
--- no tiles for normal trees, so they use the Draynor oak tile and the nearest
--- "Tree" around it.
+-- Tree tiles from the RS3 Wiki; the bank is picked from the closest banks.
+-- Each location has one tree type, so "By level" picks the highest location the
+-- player's level allows. The Wiki has no tiles for normal trees, so they use
+-- the Draynor oak tile and the nearest "Tree" around it.
 local Locations = {
     {
         Name = "Draynor normal trees",
         Tree = "Tree",
         TreeSpot = { x = 3106, y = 3247, z = 0 },
-        Bank = { x = 3093, y = 3244, z = 0 },
     },
     {
         Name = "Draynor oaks",
         Tree = "Oak",
         TreeSpot = { x = 3106, y = 3247, z = 0 },
-        Bank = { x = 3093, y = 3244, z = 0 },
     },
     {
         Name = "Draynor willows",
         Tree = "Willow",
         TreeSpot = { x = 3087, y = 3231, z = 0 },
-        Bank = { x = 3093, y = 3244, z = 0 },
     },
     {
         Name = "Seers' Village maples",
         Tree = "Maple Tree",
         TreeSpot = { x = 2729, y = 3481, z = 0 },
-        Bank = { x = 2725, y = 3492, z = 0 },
     },
     {
         Name = "Oo'glog eucalyptus",
         Tree = "Eucalyptus tree",
         TreeSpot = { x = 2408, y = 2818, z = 0 },
-        Bank = { x = 2412, y = 2827, z = 0 },
     },
     {
         Name = "Edgeville yews",
         Tree = "Yew",
         TreeSpot = { x = 3085, y = 3480, z = 0 },
-        Bank = { x = 3095, y = 3494, z = 0 },
     },
     {
         Name = "Sorcerer's Tower magics",
         Tree = "Magic tree",
         TreeSpot = { x = 2698, y = 3398, z = 0 },
-        Bank = { x = 2674, y = 3405, z = 0 },
     },
 }
 
@@ -101,6 +93,7 @@ local State = {
     Location = 1,
     WoodBoxFull = false,
     NestRetryAt = 0,
+    Bank = BankPicker.new({ x = 3093, y = 3244, z = 0 }),
 }
 
 local NestRetryDelay = 30
@@ -211,7 +204,6 @@ local function applyLocation(index)
     State.Location = index
     Config.Tree = location.Tree
     Config.TreeSpot = Movement.copyTile(location.TreeSpot)
-    Config.Bank = Movement.copyTile(location.Bank)
 end
 
 local function bestLocationForLevel(level)
@@ -285,10 +277,7 @@ local function drawBank()
     end
 
     ImGui.SeparatorText("Bank")
-    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
-    if not Config.ByLevel then
-        Gui.tile("Bank", Config.Bank)
-    end
+    BankPicker.draw(State.Bank, Config.TreeSpot)
 end
 
 applyLocation(3)
@@ -310,7 +299,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.CheckAnim(10) or API.isProcessing() or API.ReadPlayerMovin2() then
+    if API.CheckAnim(50) or API.isProcessing() or API.ReadPlayerMovin2() then
         API.RandomSleep2(50, 100, 100)
         goto continue
     end
@@ -333,9 +322,10 @@ while API.Read_LoopyLoop() do
             end
         end
 
-        if not Movement.isNear(Config.Bank, Config.AreaRadius) then
+        local bank = BankPicker.bank(State.Bank, Config.TreeSpot)
+        if not Movement.isNear(bank, Config.AreaRadius) then
             State.Status = "Walking to bank"
-            Movement.moveTo(Config.Bank)
+            Movement.moveTo(bank)
             goto continue
         end
 
@@ -345,7 +335,7 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        if not Banking.open(Config.BankType) then
+        if not Banking.open("Auto") then
             State.Status = "No bank found"
         end
         goto continue

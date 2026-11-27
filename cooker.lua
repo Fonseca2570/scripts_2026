@@ -7,7 +7,6 @@ local Production = require("utils.production")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
-    BankType = "Auto",
     StationAction = "",
 }
 
@@ -156,14 +155,8 @@ local function drawCooking()
     ImGui.Text("Leave empty to use the wiki's cook action for the station.")
 end
 
-local function drawBank()
-    ImGui.SeparatorText("Bank")
-    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
-end
-
 Gui.show("Cooker", function()
     drawCooking()
-    drawBank()
     Gui.controls(Config, State)
 end)
 
@@ -176,7 +169,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.CheckAnim(10) or API.isProcessing() or API.ReadPlayerMovin2() then
+    if API.CheckAnim(50) or API.isProcessing() or API.ReadPlayerMovin2() then
         API.RandomSleep2(50, 100, 100)
         goto continue
     end
@@ -201,7 +194,7 @@ while API.Read_LoopyLoop() do
     end
 
     State.Status = "Opening bank"
-    if not Banking.open(Config.BankType) then
+    if not Banking.open("Auto") then
         State.Status = "No bank found"
     end
 
