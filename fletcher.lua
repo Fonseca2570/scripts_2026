@@ -6,7 +6,6 @@ local Production = require("utils.production")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
-    BankType = "Auto",
     Product = "Shafts",
 }
 
@@ -25,8 +24,33 @@ local Logs = {
     { Name = "Logs", Level = 1 },
 }
 
+-- Arrowheads on headless shafts make 15 arrows, from the RS3 Wiki after the
+-- July 2026 rebalance, highest first.
+local Arrows = {
+    { Name = "Dragon arrowheads", Level = 60 },
+    { Name = "Broad arrowheads", Level = 52 },
+    { Name = "Rune arrowheads", Level = 50 },
+    { Name = "Adamant arrowheads", Level = 40 },
+    { Name = "Mithril arrowheads", Level = 30 },
+    { Name = "Steel arrowheads", Level = 20 },
+    { Name = "Iron arrowheads", Level = 10 },
+    { Name = "Bronze arrowheads", Level = 1 },
+}
+
+-- Feathering unfinished bolts makes 10 bolts, from the same rebalance.
+local Bolts = {
+    { Name = "Rune bolts (unf)", Level = 53 },
+    { Name = "Adamant bolts (unf)", Level = 43 },
+    { Name = "Mithril bolts (unf)", Level = 33 },
+    { Name = "Steel bolts (unf)", Level = 23 },
+    { Name = "Iron bolts (unf)", Level = 13 },
+    { Name = "Bronze bolts (unf)", Level = 3 },
+}
+
 -- "Craft" is the first option on logs and uses the tool belt's knife.
+-- "Feather" is the first option on unfinished bolts.
 local CraftOption = 1
+local FeatherOption = 1
 
 local LogLevels = {}
 for _, log in ipairs(Logs) do
@@ -48,6 +72,10 @@ local function isFletchable(item)
     return level ~= nil and level <= fletchingLevel()
 end
 
+local function isHeadlessShaft(item)
+    return Items.lowerName(item) == "headless shaft"
+end
+
 local function isShaft(item)
     local name = Items.lowerName(item)
     return name == "shaft" or name == "arrow shaft"
@@ -64,12 +92,13 @@ local function isOtherProduct(item)
     return name:find("bow", 1, true) ~= nil or name:find("stock", 1, true) ~= nil
 end
 
-local function bestLogInBank()
+-- Returns the highest tier the level allows that matches, as found by find.
+local function bestTier(tiers, find)
     local level = fletchingLevel()
-    for _, log in ipairs(Logs) do
-        if log.Level <= level then
-            local found = Banking.findItem(function(item)
-                return item.name == log.Name
+    for _, tier in ipairs(tiers) do
+        if tier.Level <= level then
+            local found = find(function(item)
+                return item.name == tier.Name
             end)
             if found ~= nil then
                 return found
@@ -77,6 +106,10 @@ local function bestLogInBank()
         end
     end
     return nil
+end
+
+local function bestLogInBank()
+    return bestTier(Logs, Banking.findItem)
 end
 
 -- Deposits the inventory, withdraws every item in the list and closes the bank.
@@ -143,6 +176,58 @@ local Products = {
             return false
         end,
     },
+    {
+        Name = "Arrows",
+        material = function()
+            if Items.find(isHeadlessShaft) == nil then
+                return nil
+            end
+            return bestTier(Arrows, Items.find)
+        end,
+        start = function(arrowheads)
+            Inventory:UseItemOnItem(arrowheads.id, Items.find(isHeadlessShaft).id)
+        end,
+        withdraw = function()
+            local shafts = Banking.findItem(isHeadlessShaft)
+            local arrowheads = bestTier(Arrows, Banking.findItem)
+            if shafts == nil or arrowheads == nil then
+                return false
+            end
+            return withdraw({ shafts, arrowheads })
+        end,
+        isWrongProduct = function()
+            return false
+        end,
+    },
+    {
+        Name = "Bolts",
+        material = function()
+            if Items.find(isFeather) == nil then
+                return nil
+            end
+            return bestTier(Bolts, Items.find)
+        end,
+        start = function(bolts)
+            API.DoAction_Inventory1(bolts.id, 0, FeatherOption, API.OFF_ACT_GeneralInterface_route)
+        end,
+        withdraw = function()
+            local bolts = bestTier(Bolts, Banking.findItem)
+            local feathers = Banking.findItem(isFeather)
+            if bolts == nil or feathers == nil then
+                return false
+            end
+            return withdraw({ bolts, feathers })
+        end,
+        isWrongProduct = function()
+            return false
+        end,
+    },
+}
+
+local ProductHelp = {
+    ["Headless arrows"] = "Uses the shafts and feathers in the bank.",
+    Arrows = "Uses headless shafts and the best arrowheads.",
+    Bolts = "Uses feathers and the best unfinished bolts.",
 }
 
 local ProductNames = {}
@@ -181,17 +266,11 @@ local function drawFletching()
         ImGui.Text("remembers another item.")
         return
     end
-    ImGui.Text("Uses the shafts and feathers in the bank.")
-end
-
-local function drawBank()
-    ImGui.SeparatorText("Bank")
-    Config.BankType = Gui.combo("Bank type", Config.BankType, Banking.TypeNames)
+    ImGui.Text(ProductHelp[Config.Product])
 end
 
 Gui.show("Fletcher", function()
     drawFletching()
-    drawBank()
     Gui.controls(Config, State)
 end)
 
@@ -204,7 +283,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.CheckAnim(10) or API.isProcessing() or API.ReadPlayerMovin2() then
+    if API.CheckAnim(50) or API.isProcessing() or API.ReadPlayerMovin2() then
         API.RandomSleep2(50, 100, 100)
         goto continue
     end
@@ -233,7 +312,7 @@ while API.Read_LoopyLoop() do
     end
 
     State.Status = "Opening bank"
-    if not Banking.open(Config.BankType) then
+    if not Banking.open("Auto") then
         State.Status = "No bank found"
     end
 
