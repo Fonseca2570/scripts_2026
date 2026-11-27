@@ -16,13 +16,17 @@ Shared helpers used by `fisher.lua`, `woodcutter.lua`, `cooker.lua`, `smelter.lu
 | `utils/player.lua` | `require("utils.player")` | `isBusy()` (animating, moving or processing), `waitUntilBusy()` (waits up to ~3s after a click so the next loop doesn't click again), `waitUntilIdle()` (waits up to ~10s for an action already under way to finish) |
 | `utils/banks.lua` | `require("utils.banks")` | `List` (surface bank tiles the scripts already use: Al Kharid, Draynor, Varrock west and east, Edgeville, Falador west and east, Burthorpe, Catherby, Seers' Village, Ardougne south, Fishing Guild (68 Fishing), Sorcerer's Tower, Oo'glog), `closest(tile, count)` (nearest first), `distance(a, b)` (straight line, ignores the plane) |
 | `utils/bankpicker.lua` | `require("utils.bankpicker")` | `new(customTile)`, `draw(picker, spot)` (the Bank dropdown: the 3 banks closest to the spot with their distance in tiles, plus Custom with x/y/z inputs), `bank(picker, spot)` (the tile to bank at; the options follow the spot, so a location change or a hand edit moves them, and Custom stays picked) |
-| `utils/banking.lua` | `require("utils.banking")` | `TypeNames` (Auto, Bank booth, Bank chest, Banker), `find(typeName)`, `open(typeName)` (bank chests use "Use", booths and bankers "Bank"; returns `false` when no bank is nearby), `findItem(matches)` (first matching bank item), `close()` (presses Escape) |
+| `utils/banking.lua` | `require("utils.banking")` | `TypeNames` (Auto, Bank booth, Bank chest, Banker), `find(typeName)`, `open(typeName)` (bank chests use "Use", booths and bankers "Bank"; returns `false` when no bank is nearby), `findItem(matches)` (first matching bank item), `depositAllFish(range)` (uses "Deposit all fish" on the nearest deposit box within range tiles, without opening it; false when there is none or it has no such option), `close()` (presses Escape) |
 | `utils/production.lua` | `require("utils.production")` | `isMakeXOpen()`, `confirm()` (Space) |
 | `utils/gui.lua` | `require("utils.gui")` | `indexOf`, `combo(label, value, options)`, `tile(label, tile)` (its "Set to my position" button is applied by `update()`, which scripts call once per loop, because game reads fail inside the draw callback; each fill gives the x/y/z boxes a new ImGui id so they show the new value), `text`, `checkbox`, `controls(config, state)` (radius input only when `config.AreaRadius` is set), `show(title, draw)` |
 
 Banking always uses Auto, the nearest bank and the right action for it; there is no Bank type dropdown. The miner, fisher and woodcutter walk to a bank, so they have a **Bank** dropdown (`utils/bankpicker.lua`): the 3 banks closest to the rock, fishing or tree spot, with their distance in tiles, plus **Custom**, which shows x, y and z inputs for any other bank. The closest bank is picked by default, which is the bank each preset location used before, and the list follows the spot when you change location or edit it. The cooker, fletcher and firemaker are started next to a bank, so they have no bank setting.
 
 The modules are named `Banking` and `Items` so they don't shadow the client's `Bank` and `Inventory` globals.
+
+## fisher.lua
+
+Pick a **Location** (or set the fishing spot by hand), the fishing **Type** and Banking or Power fishing. When the backpack is full of fish in Banking mode it first looks for a deposit box within 25 tiles that has the "Deposit all fish" right-click option, such as the one in Wendlewick's Fishing Shop on Havenhythe, and uses it without opening the box ("Use a nearby deposit box", on by default). Without one, it walks to the bank picked in the **Bank** dropdown and deposits the raw fish there.
 
 ## cooker.lua
 

@@ -94,6 +94,7 @@ FFPOINT = {
 local comboPick = nil
 local pressedButton = nil
 local inputLabels = {}
+local interactSent = true
 ImGui = {
     Combo = function(_, current) return comboPick ~= nil, comboPick or current end,
     Text = function() end,
@@ -109,7 +110,10 @@ ImGui = {
 
 Interact = {
     NPC = function(_, name, action) record("NPC", name, action) end,
-    Object = function(_, name, action) record("Object", name, action) end,
+    Object = function(_, name, action)
+        record("Object", name, action)
+        return interactSent
+    end,
 }
 
 local Banking = require("utils.banking")
@@ -361,6 +365,40 @@ for _, tt in ipairs({
     check(tt.name .. " (result)", Banking.open(tt.bankType), tt.expected)
     check(tt.name .. " (call)", calls[2] and table.concat(calls[2], ","), tt.expectedCall)
 end
+
+for _, tt in ipairs({
+    {
+        name = "depositAllFish uses the nearest deposit box in range",
+        objects = {
+            { Name = "Deposit box", Type = 0, Tile_XYZ = 12 },
+            { Name = "Bank deposit box", Type = 0, Tile_XYZ = 8 },
+            { Name = "Bank booth", Type = 0, Tile_XYZ = 2 },
+        },
+        sent = true,
+        expected = true,
+        expectedCall = "Object,Bank deposit box,Deposit all fish",
+    },
+    {
+        name = "depositAllFish ignores deposit boxes out of range",
+        objects = { { Name = "Deposit box", Type = 0, Tile_XYZ = 30 } },
+        sent = true,
+        expected = false,
+        expectedCall = nil,
+    },
+    {
+        name = "depositAllFish fails when the box has no Deposit all fish option",
+        objects = { { Name = "Deposit box", Type = 0, Tile_XYZ = 5 } },
+        sent = false,
+        expected = false,
+        expectedCall = "Object,Deposit box,Deposit all fish",
+    },
+}) do
+    reset()
+    objects, interactSent = tt.objects, tt.sent
+    check(tt.name .. " (result)", Banking.depositAllFish(25), tt.expected)
+    check(tt.name .. " (call)", calls[2] and table.concat(calls[2], ","), tt.expectedCall)
+end
+interactSent = true
 
 for _, tt in ipairs({
     { name = "TypeNames starts with Auto", index = 1, expected = "Auto" },

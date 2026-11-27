@@ -5,6 +5,7 @@ local BankPicker = require("utils.bankpicker")
 local Gui = require("utils.gui")
 local Items = require("utils.items")
 local Movement = require("utils.movement")
+local Player = require("utils.player")
 API.SetDrawTrackedSkills(true)
 
 local Config = {
@@ -15,7 +16,10 @@ local Config = {
     PowerFish = false,
     InfiniteSupplies = false,
     RequiredItem = "",
+    UseDepositBox = true,
 }
+
+local DepositBoxRange = 25
 
 local FishingActions = { "Cage", "Harpoon", "Net", "Big net", "Bait", "Lure" }
 local Modes = { "Banking", "Power fishing" }
@@ -147,6 +151,7 @@ local function drawBank()
     end
 
     ImGui.SeparatorText("Bank")
+    Config.UseDepositBox = Gui.checkbox("Use a nearby deposit box", Config.UseDepositBox)
     BankPicker.draw(State.Bank, Config.FishingSpot)
 end
 
@@ -179,6 +184,12 @@ while API.Read_LoopyLoop() do
             if Items.dropAll(isRawFish) then
                 goto continue
             end
+        end
+
+        if Config.UseDepositBox and Items.find(isRawFish) ~= nil and Banking.depositAllFish(DepositBoxRange) then
+            State.Status = "Depositing fish"
+            Player.waitUntilBusy()
+            goto continue
         end
 
         local bank = BankPicker.bank(State.Bank, Config.FishingSpot)

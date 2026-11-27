@@ -8,6 +8,9 @@ local NpcType = 1
 local DecorType = 12
 local EscapeKey = 0x1B
 local BankContainer = 95
+-- Some deposit boxes, like Wendlewick's, have this right-click option, which
+-- deposits the fish without opening the box.
+local DepositAllFishAction = "Deposit all fish"
 
 -- Bank chests open with "Use", bank booths and bankers with "Bank". Bankers are
 -- NPCs, sometimes with a prefix like "Gnome banker". Deposit boxes are not
@@ -59,6 +62,24 @@ function Banking.open(typeName)
     end
     Interact:Object(bank.Name, bankType.Action)
     return true
+end
+
+local function isDepositBox(object)
+    return (object.Name or ""):lower():find("deposit box", 1, true) ~= nil
+end
+
+-- Uses "Deposit all fish" on the nearest deposit box within range tiles of the
+-- player. Returns false when there is none or the box has no such option.
+function Banking.depositAllFish(range)
+    local candidates = API.ReadAllObjectsArray({ ObjectType, DecorType }, { -1 }, {}) or {}
+    local box = Objects.nearest(candidates, function(candidate)
+        return isDepositBox(candidate) and API.Dist_FLP(candidate.Tile_XYZ) <= range
+    end)
+    if box == nil then
+        return false
+    end
+
+    return Interact:Object(box.Name, DepositAllFishAction, box.Tile_XYZ, 1) == true
 end
 
 -- The API has no close-bank call, so press Escape like a player would. An open
