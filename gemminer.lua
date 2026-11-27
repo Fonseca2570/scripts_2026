@@ -100,7 +100,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.CheckAnim(10) then
+    if API.CheckAnim(50) then
         if Stamina.isLow(level("MINING")) then
             State.Status = "Refreshing stamina"
             mine()

@@ -184,7 +184,7 @@ while API.Read_LoopyLoop() do
             goto continue
         end
 
-        if API.CheckAnim(10) then
+        if API.CheckAnim(50) then
             State.Status = "Smithing"
             goto continue
         end
@@ -194,7 +194,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if API.CheckAnim(10) or API.isProcessing() then
+    if API.CheckAnim(50) or API.isProcessing() then
         goto continue
     end
 

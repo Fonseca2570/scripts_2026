@@ -150,7 +150,7 @@ while API.Read_LoopyLoop() do
         goto continue
     end
 
-    if isSmelting() or API.CheckAnim(10) or API.isProcessing() or API.ReadPlayerMovin2() then
+    if isSmelting() or API.CheckAnim(50) or API.isProcessing() or API.ReadPlayerMovin2() then
         API.RandomSleep2(50, 100, 100)
         goto continue
     end
